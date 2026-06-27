@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { auth } from "./auth";
 
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 
@@ -30,15 +31,16 @@ function json(body: unknown, status = 200): Response {
 }
 
 // POST /plans — the agent-facing endpoint.
-// Auth: Authorization: Bearer <PUBLISH_TOKEN>
-// Body: raw HTML, or JSON { title?, html }
-// Returns: { id, url, title }
+// Auth: Authorization: Bearer <per-user API key> (phk_...)
+// Body: raw HTML, or JSON { title?, html, slug? }
+// Returns: { id, url, title, updated }
 const publish = httpAction(async (ctx, request) => {
-  const expected = process.env.PUBLISH_TOKEN;
-  const auth = request.headers.get("Authorization") ?? "";
-  if (!expected || auth !== `Bearer ${expected}`) {
-    return json({ error: "unauthorized" }, 401);
-  }
+  const header = request.headers.get("Authorization") ?? "";
+  const key = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const userId = key
+    ? await ctx.runQuery(internal.plans.userIdByApiKey, { key })
+    : null;
+  if (!userId) return json({ error: "unauthorized" }, 401);
 
   let html = "";
   let title = "";
@@ -70,13 +72,17 @@ const publish = httpAction(async (ctx, request) => {
     slug = makeSlug();
   }
 
-  const updated = await ctx.runMutation(internal.plans.upsert, {
+  const result = await ctx.runMutation(internal.plans.upsert, {
+    userId,
     slug,
     title,
     html,
   });
+  if (result === "conflict") {
+    return json({ error: `slug '${slug}' is already taken` }, 409);
+  }
   const url = `${process.env.CONVEX_SITE_URL}/p/${slug}`;
-  return json({ id: slug, url, title, updated });
+  return json({ id: slug, url, title, updated: result === "updated" });
 });
 
 // GET /p/:slug — render the stored HTML as-is.
@@ -97,6 +103,7 @@ const view = httpAction(async (ctx, request) => {
 });
 
 const http = httpRouter();
+auth.addHttpRoutes(http); // /api/auth/* routes for Convex Auth
 http.route({ path: "/plans", method: "POST", handler: publish });
 http.route({ pathPrefix: "/p/", method: "GET", handler: view });
 

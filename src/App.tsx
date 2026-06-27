@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import {
+  Authenticated,
+  Unauthenticated,
+  AuthLoading,
+  useQuery,
+  useMutation,
+} from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import "./App.css";
 
-// Derive the HTTP-actions (.convex.site) origin from the client URL so the
-// frontend only needs VITE_CONVEX_URL set in production.
 const CLOUD_URL = import.meta.env.VITE_CONVEX_URL as string;
 const SITE_URL =
   (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
   CLOUD_URL.replace(".convex.cloud", ".convex.site");
-
-const PW_KEY = "planHostPassword";
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -22,79 +25,146 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function Gate({ onSubmit, error }: { onSubmit: (pw: string) => void; error: boolean }) {
-  const [pw, setPw] = useState("");
+function SignIn() {
+  const { signIn } = useAuthActions();
+  const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
   return (
-    <form
-      className="gate"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(pw.trim());
-      }}
-    >
+    <div className="gate">
       <h1>
         <span className="dot" /> HTML Plan Host
       </h1>
-      <p className="muted">Enter the index password to view published plans.</p>
-      <input
-        type="password"
-        value={pw}
-        onChange={(e) => setPw(e.target.value)}
-        placeholder="Password"
-        autoFocus
-      />
-      <button type="submit">Unlock</button>
-      {error && <p className="err">Wrong password.</p>}
-    </form>
+      <p className="muted">
+        Publish HTML plans from your coding agents and get a shareable URL.
+        {flow === "signIn" ? " Sign in" : " Create an account"} to start.
+      </p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError(null);
+          setBusy(true);
+          const data = new FormData(e.currentTarget);
+          data.set("flow", flow);
+          try {
+            await signIn("password", data);
+          } catch {
+            setError(
+              flow === "signIn"
+                ? "Couldn't sign in — check your email and password."
+                : "Couldn't sign up — that email may already be registered.",
+            );
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <input name="email" type="email" placeholder="Email" autoComplete="email" required />
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          autoComplete={flow === "signIn" ? "current-password" : "new-password"}
+          required
+        />
+        <button type="submit" disabled={busy}>
+          {busy ? "…" : flow === "signIn" ? "Sign in" : "Sign up"}
+        </button>
+      </form>
+      {error && <p className="err">{error}</p>}
+      <button
+        className="link"
+        onClick={() => {
+          setError(null);
+          setFlow(flow === "signIn" ? "signUp" : "signIn");
+        }}
+      >
+        {flow === "signIn"
+          ? "Need an account? Sign up"
+          : "Already have an account? Sign in"}
+      </button>
+    </div>
   );
 }
 
-function App() {
-  const [password, setPassword] = useState<string>(
-    () => localStorage.getItem(PW_KEY) ?? "",
-  );
+function ApiKeys() {
+  const keys = useQuery(api.plans.myApiKeys);
+  const create = useMutation(api.plans.createApiKey);
+  const revoke = useMutation(api.plans.revokeApiKey);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  const result = useQuery(
-    api.plans.listRecent,
-    password ? { password } : "skip",
-  );
-
-  // No password entered yet, or it was rejected -> show the gate.
-  if (!password || (result && !result.authorized)) {
-    return (
-      <main className="wrap">
-        <Gate
-          error={Boolean(password) && result !== undefined && !result.authorized}
-          onSubmit={(pw) => {
-            localStorage.setItem(PW_KEY, pw);
-            setPassword(pw);
-          }}
-        />
-      </main>
-    );
-  }
-
-  const plans = result?.plans;
+  const copy = (text: string, id: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
+  };
 
   return (
-    <main className="wrap">
+    <section className="keys">
+      <div className="keys-head">
+        <h2>API keys</h2>
+        <button className="mini" onClick={() => void create({})}>
+          + New key
+        </button>
+      </div>
+      <p className="muted small">
+        Your agents publish with one of these. Put it in{" "}
+        <code>~/.config/plan-host/config</code>:
+      </p>
+      <pre className="snippet">
+        PLAN_HOST_URL={SITE_URL}
+        {"\n"}PLAN_HOST_TOKEN=&lt;your key below&gt;
+      </pre>
+      {keys === undefined ? (
+        <p className="muted">Loading…</p>
+      ) : keys.length === 0 ? (
+        <p className="muted">No keys yet — generate one to let your agents publish.</p>
+      ) : (
+        <ul className="keylist">
+          {keys.map((k) => (
+            <li key={k._id}>
+              <code className="key">{k.key}</code>
+              <button className="mini" onClick={() => copy(k.key, k._id)}>
+                {copied === k._id ? "Copied" : "Copy"}
+              </button>
+              <button className="mini danger" onClick={() => void revoke({ id: k._id })}>
+                Revoke
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function Dashboard() {
+  const { signOut } = useAuthActions();
+  const plans = useQuery(api.plans.listMine);
+
+  return (
+    <>
       <header className="head">
         <h1>
           <span className="dot" /> HTML Plan Host
+          <button className="link signout" onClick={() => void signOut()}>
+            Sign out
+          </button>
         </h1>
-        <p className="sub">
-          Plans your agents publish, live. Newest first — this list updates in
-          real time as plans come in.
-        </p>
+        <p className="sub">Your published plans, newest first — live.</p>
       </header>
 
+      <ApiKeys />
+
+      <h2 className="plans-title">Plans</h2>
       {plans === undefined ? (
         <p className="muted">Loading…</p>
       ) : plans.length === 0 ? (
         <div className="empty">
           <p>No plans yet.</p>
           <p className="muted">
-            Publish one with <code>POST {SITE_URL}/plans</code>
+            Publish one with <code>publish-plan plan.html</code>
           </p>
         </div>
       ) : (
@@ -120,6 +190,22 @@ function App() {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+function App() {
+  return (
+    <main className="wrap">
+      <AuthLoading>
+        <p className="muted">Loading…</p>
+      </AuthLoading>
+      <Unauthenticated>
+        <SignIn />
+      </Unauthenticated>
+      <Authenticated>
+        <Dashboard />
+      </Authenticated>
     </main>
   );
 }
