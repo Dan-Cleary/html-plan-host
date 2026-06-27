@@ -99,6 +99,20 @@ const publish = httpAction(async (ctx, request) => {
   return json({ id: slug, url, title, updated: result === "updated" });
 });
 
+// POST /provision — unauthenticated agent self-signup.
+// Returns { apiKey, claimUrl }. Rate-limited per IP.
+const provision = httpAction(async (ctx, request) => {
+  const ip =
+    (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() ||
+    "unknown";
+  const result = await ctx.runMutation(internal.plans.provisionWorkspace, { ip });
+  if (result === "rate_limited") {
+    return json({ error: "rate limited — try again later" }, 429);
+  }
+  const claimUrl = `${process.env.SITE_URL}/claim/${result.claimToken}`;
+  return json({ apiKey: result.apiKey, claimUrl });
+});
+
 // GET /p/:slug — render the stored HTML as-is.
 const view = httpAction(async (ctx, request) => {
   const slug = new URL(request.url).pathname.replace(/^\/p\//, "");
@@ -118,6 +132,7 @@ const view = httpAction(async (ctx, request) => {
 
 const http = httpRouter();
 auth.addHttpRoutes(http); // /api/auth/* routes for Convex Auth
+http.route({ path: "/provision", method: "POST", handler: provision });
 http.route({ path: "/plans", method: "POST", handler: publish });
 http.route({ pathPrefix: "/p/", method: "GET", handler: view });
 

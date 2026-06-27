@@ -18,6 +18,10 @@ function randomToken(len: number): string {
 
 // Per-user limit on stored plans (abuse guard for the hosted service).
 const MAX_PLANS_PER_USER = 1000;
+// Anonymous (agent-provisioned, unclaimed) workspaces are throwaway: tighter cap
+// and a default expiry so they evaporate unless a human claims them.
+const ANON_MAX_PLANS = 25;
+const ANON_PLAN_TTL_MS = 7 * 86_400_000;
 
 // Create or update a plan by slug, scoped to an owner. Called from the HTTP
 // publish action after it resolves the API key to a userId.
@@ -40,6 +44,12 @@ export const upsert = internalMutation({
     v.literal("limit"),
   ),
   handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    const isAnon = user?.isAnonymous === true;
+    // Anonymous workspaces default to a TTL unless the caller set one explicitly.
+    const expiresAt =
+      args.expiresAt ?? (isAnon ? Date.now() + ANON_PLAN_TTL_MS : undefined);
+
     const existing = await ctx.db
       .query("plans")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
@@ -49,7 +59,7 @@ export const upsert = internalMutation({
       await ctx.db.patch(existing._id, {
         title: args.title,
         html: args.html,
-        expiresAt: args.expiresAt,
+        expiresAt,
       });
       return "updated";
     }
@@ -57,14 +67,16 @@ export const upsert = internalMutation({
       .query("plans")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
-    if (mine.length >= MAX_PLANS_PER_USER) return "limit";
+    if (mine.length >= (isAnon ? ANON_MAX_PLANS : MAX_PLANS_PER_USER)) {
+      return "limit";
+    }
     await ctx.db.insert("plans", {
       userId: args.userId,
       slug: args.slug,
       title: args.title,
       html: args.html,
       views: 0,
-      expiresAt: args.expiresAt,
+      expiresAt,
     });
     return "created";
   },
@@ -220,6 +232,83 @@ export const revokeApiKey = mutation({
     const row = await ctx.db.get(args.id);
     if (row && row.userId === userId) await ctx.db.delete(args.id);
     return null;
+  },
+});
+
+// --- Agent self-provisioning + human claim ---
+
+const PROVISION_PER_IP_PER_HOUR = 10;
+const CLAIM_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Create an anonymous workspace (user + API key + claim token). Called by the
+// unauthenticated POST /provision endpoint, so it rate-limits by IP.
+export const provisionWorkspace = internalMutation({
+  args: { ip: v.string() },
+  returns: v.union(
+    v.literal("rate_limited"),
+    v.object({ apiKey: v.string(), claimToken: v.string() }),
+  ),
+  handler: async (ctx, args) => {
+    if (args.ip !== "unknown") {
+      const since = Date.now() - 60 * 60 * 1000;
+      const recent = await ctx.db
+        .query("provisionLog")
+        .withIndex("by_ip", (q) => q.eq("ip", args.ip))
+        .collect();
+      if (recent.filter((r) => r._creationTime > since).length >= PROVISION_PER_IP_PER_HOUR) {
+        return "rate_limited";
+      }
+    }
+    await ctx.db.insert("provisionLog", { ip: args.ip });
+
+    const userId = await ctx.db.insert("users", { isAnonymous: true });
+    const apiKey = `phk_${randomToken(32)}`;
+    await ctx.db.insert("apiKeys", { userId, key: apiKey, label: "agent" });
+    const claimToken = randomToken(40);
+    await ctx.db.insert("claimTokens", {
+      token: claimToken,
+      workspaceUserId: userId,
+      expiresAt: Date.now() + CLAIM_TOKEN_TTL_MS,
+    });
+    return { apiKey, claimToken };
+  },
+});
+
+// A signed-in human claims an anonymous workspace: its plans + API keys move to
+// their account and the plans become permanent. The agent's key keeps working.
+export const claimWorkspace = mutation({
+  args: { token: v.string() },
+  returns: v.object({ claimed: v.number() }),
+  handler: async (ctx, args) => {
+    const me = await getAuthUserId(ctx);
+    if (!me) throw new Error("Sign in to claim this workspace");
+    const ct = await ctx.db
+      .query("claimTokens")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (!ct || ct.expiresAt < Date.now()) {
+      throw new Error("This claim link is invalid or has expired");
+    }
+    const anonId = ct.workspaceUserId;
+
+    const plans = await ctx.db
+      .query("plans")
+      .withIndex("by_user", (q) => q.eq("userId", anonId))
+      .collect();
+    for (const p of plans) {
+      await ctx.db.patch(p._id, { userId: me, expiresAt: undefined }); // make permanent
+    }
+    const keys = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_user", (q) => q.eq("userId", anonId))
+      .collect();
+    for (const k of keys) await ctx.db.patch(k._id, { userId: me });
+
+    await ctx.db.delete(ct._id);
+    const anon = await ctx.db.get(anonId);
+    if (anon && anon.isAnonymous && anonId !== me) await ctx.db.delete(anonId);
+
+    return { claimed: plans.length };
   },
 });
 

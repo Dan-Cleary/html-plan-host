@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Authenticated,
   Unauthenticated,
   AuthLoading,
+  useConvexAuth,
   useQuery,
   useMutation,
 } from "convex/react";
@@ -25,7 +26,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function SignIn() {
+function SignIn({ intro }: { intro?: string }) {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +38,9 @@ function SignIn() {
         <span className="dot" /> HTML Plan Host
       </h1>
       <p className="muted">
-        Publish HTML plans from your coding agents and get a shareable URL.
-        {flow === "signIn" ? " Sign in" : " Create an account"} to start.
+        {intro ??
+          "Publish HTML plans from your coding agents and get a shareable URL."}{" "}
+        {flow === "signIn" ? "Sign in" : "Create an account"} to start.
       </p>
       <form
         onSubmit={async (e) => {
@@ -220,18 +222,82 @@ function Dashboard() {
   );
 }
 
+function ClaimPage({ token }: { token: string }) {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const claim = useMutation(api.plans.claimWorkspace);
+  const [status, setStatus] = useState<"idle" | "claiming" | "done" | "error">("idle");
+  const [claimed, setClaimed] = useState(0);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isAuthenticated || status !== "idle") return;
+    setStatus("claiming");
+    claim({ token })
+      .then((r) => {
+        setClaimed(r.claimed);
+        setStatus("done");
+      })
+      .catch((e) => {
+        setError(String(e?.message ?? e).replace(/^.*Error:\s*/, ""));
+        setStatus("error");
+      });
+  }, [isAuthenticated, status, claim, token]);
+
+  if (isLoading) return <p className="muted">Loading…</p>;
+  if (!isAuthenticated) {
+    return (
+      <SignIn intro="You're claiming a workspace an agent created for you. Its plans will move to your account and become permanent." />
+    );
+  }
+  return (
+    <div className="gate">
+      <h1>
+        <span className="dot" /> HTML Plan Host
+      </h1>
+      {status === "claiming" && <p className="muted">Claiming…</p>}
+      {status === "done" && (
+        <>
+          <p>
+            Workspace claimed — {claimed} {claimed === 1 ? "plan" : "plans"} added to
+            your account.
+          </p>
+          <a className="mini" href="/">
+            Go to dashboard
+          </a>
+        </>
+      )}
+      {status === "error" && (
+        <>
+          <p className="err">{error}</p>
+          <a className="mini" href="/">
+            Go to dashboard
+          </a>
+        </>
+      )}
+    </div>
+  );
+}
+
 function App() {
+  const claimMatch = window.location.pathname.match(/^\/claim\/(.+)$/);
+
   return (
     <main className="wrap">
-      <AuthLoading>
-        <p className="muted">Loading…</p>
-      </AuthLoading>
-      <Unauthenticated>
-        <SignIn />
-      </Unauthenticated>
-      <Authenticated>
-        <Dashboard />
-      </Authenticated>
+      {claimMatch ? (
+        <ClaimPage token={claimMatch[1]} />
+      ) : (
+        <>
+          <AuthLoading>
+            <p className="muted">Loading…</p>
+          </AuthLoading>
+          <Unauthenticated>
+            <SignIn />
+          </Unauthenticated>
+          <Authenticated>
+            <Dashboard />
+          </Authenticated>
+        </>
+      )}
     </main>
   );
 }

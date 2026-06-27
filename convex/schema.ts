@@ -34,4 +34,17 @@ export default defineSchema({
   })
     .index("by_key", ["key"])
     .index("by_user", ["userId"]),
+
+  // One-time links that let a human claim an anonymous (agent-provisioned)
+  // workspace, taking ownership of its plans + keys.
+  claimTokens: defineTable({
+    token: v.string(),
+    workspaceUserId: v.id("users"),
+    expiresAt: v.number(),
+  }).index("by_token", ["token"]),
+
+  // Lightweight per-IP log to rate-limit anonymous provisioning.
+  provisionLog: defineTable({
+    ip: v.string(),
+  }).index("by_ip", ["ip"]),
 });

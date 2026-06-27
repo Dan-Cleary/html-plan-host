@@ -12,9 +12,13 @@
 // Config (env wins over file): ~/.config/plan-host/config
 //   PLAN_HOST_URL    e.g. https://helpful-oriole-502.convex.site
 //   PLAN_HOST_TOKEN  the bearer token
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+// The hosted instance — used to auto-provision a workspace when nothing is
+// configured yet. Override by setting PLAN_HOST_URL.
+const DEFAULT_HOST = "https://vibrant-barracuda-527.convex.site";
 
 function loadConfig() {
   const path =
@@ -65,12 +69,30 @@ for (let i = 0; i < args.length; i++) {
   } else file = a;
 }
 
-const { url, token } = loadConfig();
-if (!url || !token) {
-  console.error(
-    "publish-plan: set PLAN_HOST_URL and PLAN_HOST_TOKEN (env or ~/.config/plan-host/config)",
-  );
-  process.exit(1);
+let { url, token } = loadConfig();
+
+// No key yet? Auto-provision an anonymous workspace — zero human involvement.
+if (!token) {
+  url = (url || DEFAULT_HOST).replace(/\/$/, "");
+  const r = await fetch(`${url}/provision`, { method: "POST" });
+  if (!r.ok) {
+    console.error(`publish-plan: provisioning failed (${r.status} ${await r.text()})`);
+    process.exit(1);
+  }
+  const prov = await r.json();
+  token = prov.apiKey;
+  const cfgPath =
+    process.env.PLAN_HOST_CONFIG || join(homedir(), ".config/plan-host/config");
+  mkdirSync(join(cfgPath, ".."), { recursive: true });
+  writeFileSync(cfgPath, `PLAN_HOST_URL=${url}\nPLAN_HOST_TOKEN=${token}\n`, {
+    mode: 0o600,
+  });
+  console.error("");
+  console.error("  🆕 Provisioned a new workspace — no account needed.");
+  console.error(`  🔑 API key saved to ${cfgPath}`);
+  console.error("  👉 Claim it to keep these plans and manage them:");
+  console.error(`     ${prov.claimUrl}`);
+  console.error("");
 }
 
 const html = file ? readFileSync(file, "utf8") : readFileSync(0, "utf8");
