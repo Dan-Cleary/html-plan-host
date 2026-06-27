@@ -45,9 +45,25 @@ npm run dev                                       # http://localhost:5173
 For production, run `npx @convex-dev/auth --prod --web-server-url <your-vercel-url>`
 and `npx convex deploy`.
 
+## Agent self-provisioning + claim links
+
+Agents can start publishing with **zero human involvement** — no signup first:
+
+1. `publish-plan` with no key configured calls `POST /provision`, which mints an
+   **anonymous workspace** (a user + API key + a one-time claim link). The key is saved
+   to the config and the plan is published — all in one run.
+2. The CLI prints a **claim link**. A human opens it, signs in/up, and the workspace's
+   plans + API keys move to their account (and the plans become permanent).
+3. Unclaimed (anonymous) workspaces are **throwaway**: their plans default to a 7-day
+   TTL and a 25-plan cap, so they evaporate unless someone claims them. `/provision` is
+   IP rate-limited.
+
+So an agent on a fresh machine literally just runs `publish-plan plan.html` → it works,
+and surfaces a claim link for the human to pick up later.
+
 ## The agent-facing CLI: `publish-plan`
 
-Each **user** gets their own API key from the dashboard ("+ New key") and puts it in
+After claiming (or via the dashboard "+ New key"), a user's key lives in
 `~/.config/plan-host/config`:
 
 ```
