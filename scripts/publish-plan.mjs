@@ -4,6 +4,8 @@
 // Usage:
 //   publish-plan plan.html
 //   publish-plan --title "PR #39 Review" plan.html
+//   publish-plan --slug auth-refactor plan.html   # stable URL; re-publishing
+//                                                  # the same slug updates it
 //   cat plan.html | publish-plan            # read HTML from stdin
 //
 // Config (env wins over file): ~/.config/plan-host/config
@@ -35,13 +37,18 @@ function loadConfig() {
 
 const args = process.argv.slice(2);
 let title = "";
+let slug = "";
 let file = "";
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === "--title") title = args[++i];
   else if (a.startsWith("--title=")) title = a.slice(8);
+  else if (a === "--slug") slug = args[++i];
+  else if (a.startsWith("--slug=")) slug = a.slice(7);
   else if (a === "-h" || a === "--help") {
-    console.log("usage: publish-plan [--title T] [file.html]  (reads stdin if no file)");
+    console.log(
+      "usage: publish-plan [--title T] [--slug S] [file.html]  (reads stdin if no file)",
+    );
     process.exit(0);
   } else file = a;
 }
@@ -60,13 +67,17 @@ if (!html.trim()) {
   process.exit(1);
 }
 
+// Send JSON when we have structured fields (title/slug); otherwise raw HTML.
+const useJson = Boolean(title || slug);
 const res = await fetch(`${url.replace(/\/$/, "")}/plans`, {
   method: "POST",
   headers: {
     authorization: `Bearer ${token}`,
-    "content-type": title ? "application/json" : "text/html",
+    "content-type": useJson ? "application/json" : "text/html",
   },
-  body: title ? JSON.stringify({ title, html }) : html,
+  body: useJson
+    ? JSON.stringify({ ...(title && { title }), ...(slug && { slug }), html })
+    : html,
 });
 
 if (!res.ok) {
@@ -75,5 +86,5 @@ if (!res.ok) {
 }
 
 const data = await res.json();
-console.error(`✓ published: ${data.title}`); // human note on stderr
+console.error(`✓ ${data.updated ? "updated" : "published"}: ${data.title}`); // stderr
 console.log(data.url); // the URL on stdout, nothing else

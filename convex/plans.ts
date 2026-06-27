@@ -1,13 +1,22 @@
 import { v } from "convex/values";
 import { query, internalMutation } from "./_generated/server";
 
-// Insert a new plan. Called only from the HTTP publish action.
-export const create = internalMutation({
+// Create or update a plan by slug. Called only from the HTTP publish action.
+// New slug -> insert; existing slug -> overwrite title/html, preserve views.
+export const upsert = internalMutation({
   args: { slug: v.string(), title: v.string(), html: v.string() },
-  returns: v.null(),
+  returns: v.boolean(), // true if this updated an existing plan
   handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("plans")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { title: args.title, html: args.html });
+      return true;
+    }
     await ctx.db.insert("plans", { ...args, views: 0 });
-    return null;
+    return false;
   },
 });
 
@@ -51,23 +60,35 @@ export const clearAll = internalMutation({
 });
 
 // Metadata for the live index page (no HTML bodies, kept light).
+// Password-gated: the index lists titles + links, so it requires the shared
+// INDEX_PASSWORD. The per-plan /p/:slug pages stay open (unguessable slug).
 export const listRecent = query({
-  args: {},
-  returns: v.array(
-    v.object({
-      slug: v.string(),
-      title: v.string(),
-      views: v.number(),
-      createdAt: v.number(),
-    }),
-  ),
-  handler: async (ctx) => {
+  args: { password: v.string() },
+  returns: v.object({
+    authorized: v.boolean(),
+    plans: v.array(
+      v.object({
+        slug: v.string(),
+        title: v.string(),
+        views: v.number(),
+        createdAt: v.number(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const expected = process.env.INDEX_PASSWORD;
+    if (!expected || args.password !== expected) {
+      return { authorized: false, plans: [] };
+    }
     const plans = await ctx.db.query("plans").order("desc").take(100);
-    return plans.map((p) => ({
-      slug: p.slug,
-      title: p.title,
-      views: p.views,
-      createdAt: p._creationTime,
-    }));
+    return {
+      authorized: true,
+      plans: plans.map((p) => ({
+        slug: p.slug,
+        title: p.title,
+        views: p.views,
+        createdAt: p._creationTime,
+      })),
+    };
   },
 });

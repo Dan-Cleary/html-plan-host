@@ -47,8 +47,15 @@ Usage (prints **only the URL** to stdout — easy for an agent to capture):
 ```sh
 publish-plan plan.html
 publish-plan --title "PR #39 Review" plan.html
+publish-plan --slug auth-refactor plan.html   # stable URL; re-publishing the
+                                               # same slug updates it in place
 cat plan.html | publish-plan          # read from stdin
 ```
+
+**Stable / updatable URLs:** pass `--slug <name>` (or `slug` in the JSON body)
+to control the URL. Publishing the same slug again overwrites that plan in place
+(view count preserved), so the link you handed another agent stays current as the
+plan is revised. Omit it to get a random unguessable slug.
 
 There's also a global Claude Code command at `~/.claude/commands/publish-plan.md`,
 so `/publish-plan` works from any repo: it writes a clean mobile-friendly HTML doc and
@@ -66,9 +73,10 @@ curl -sS -X POST "$PLAN_HOST_URL/plans" \
 
 ## Notes / current posture
 
-- **Privacy:** plan slugs are unguessable (36^8), but the live index page is currently
-  public and lists titles + links. Fine for a personal/team tool; token-gate `listRecent`
-  if that changes.
+- **Privacy:** the live index page is **password-gated** — it requires the shared
+  `INDEX_PASSWORD` (Convex env var) to list plan titles + links. Set it with
+  `npx convex env set INDEX_PASSWORD <pw> --prod`. The per-plan `/p/:slug` pages stay
+  open (unguessable 36^8 slug) so the share-a-link flow still works.
 - **Size:** HTML is stored as a string field (Convex 1 MB/doc limit). Plans are well under.
 - **Mobile:** HTML is served as-is — agents should include `<meta name="viewport">`
   (the `/publish-plan` command does this automatically).

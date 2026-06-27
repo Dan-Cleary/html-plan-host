@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import "./App.css";
@@ -9,6 +10,8 @@ const SITE_URL =
   (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
   CLOUD_URL.replace(".convex.cloud", ".convex.site");
 
+const PW_KEY = "planHostPassword";
+
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -19,8 +22,59 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function Gate({ onSubmit, error }: { onSubmit: (pw: string) => void; error: boolean }) {
+  const [pw, setPw] = useState("");
+  return (
+    <form
+      className="gate"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(pw.trim());
+      }}
+    >
+      <h1>
+        <span className="dot" /> HTML Plan Host
+      </h1>
+      <p className="muted">Enter the index password to view published plans.</p>
+      <input
+        type="password"
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+        placeholder="Password"
+        autoFocus
+      />
+      <button type="submit">Unlock</button>
+      {error && <p className="err">Wrong password.</p>}
+    </form>
+  );
+}
+
 function App() {
-  const plans = useQuery(api.plans.listRecent);
+  const [password, setPassword] = useState<string>(
+    () => localStorage.getItem(PW_KEY) ?? "",
+  );
+
+  const result = useQuery(
+    api.plans.listRecent,
+    password ? { password } : "skip",
+  );
+
+  // No password entered yet, or it was rejected -> show the gate.
+  if (!password || (result && !result.authorized)) {
+    return (
+      <main className="wrap">
+        <Gate
+          error={Boolean(password) && result !== undefined && !result.authorized}
+          onSubmit={(pw) => {
+            localStorage.setItem(PW_KEY, pw);
+            setPassword(pw);
+          }}
+        />
+      </main>
+    );
+  }
+
+  const plans = result?.plans;
 
   return (
     <main className="wrap">
@@ -40,20 +94,26 @@ function App() {
         <div className="empty">
           <p>No plans yet.</p>
           <p className="muted">
-            Publish one with{" "}
-            <code>POST {SITE_URL}/plans</code>
+            Publish one with <code>POST {SITE_URL}/plans</code>
           </p>
         </div>
       ) : (
         <ul className="list">
           {plans.map((p) => (
             <li key={p.slug}>
-              <a className="card" href={`${SITE_URL}/p/${p.slug}`} target="_blank" rel="noreferrer">
+              <a
+                className="card"
+                href={`${SITE_URL}/p/${p.slug}`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <span className="title">{p.title}</span>
                 <span className="meta">
                   <span className="slug">/{p.slug}</span>
                   <span>{timeAgo(p.createdAt)}</span>
-                  <span>{p.views} {p.views === 1 ? "view" : "views"}</span>
+                  <span>
+                    {p.views} {p.views === 1 ? "view" : "views"}
+                  </span>
                 </span>
               </a>
             </li>

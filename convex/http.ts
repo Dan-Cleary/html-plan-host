@@ -42,11 +42,17 @@ const publish = httpAction(async (ctx, request) => {
 
   let html = "";
   let title = "";
+  let slug = "";
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    const body = (await request.json()) as { title?: unknown; html?: unknown };
+    const body = (await request.json()) as {
+      title?: unknown;
+      html?: unknown;
+      slug?: unknown;
+    };
     html = typeof body.html === "string" ? body.html : "";
     title = typeof body.title === "string" ? body.title : "";
+    slug = typeof body.slug === "string" ? body.slug : "";
   } else {
     html = await request.text();
   }
@@ -54,10 +60,23 @@ const publish = httpAction(async (ctx, request) => {
   if (!html.trim()) return json({ error: "missing html" }, 400);
   if (!title) title = extractTitle(html);
 
-  const slug = makeSlug();
-  await ctx.runMutation(internal.plans.create, { slug, title, html });
+  // Optional custom slug enables stable, updatable URLs: publishing the same
+  // slug again overwrites the plan in place. Must be URL-safe.
+  if (slug) {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/i.test(slug)) {
+      return json({ error: "invalid slug: use 1-64 chars [a-z0-9-]" }, 400);
+    }
+  } else {
+    slug = makeSlug();
+  }
+
+  const updated = await ctx.runMutation(internal.plans.upsert, {
+    slug,
+    title,
+    html,
+  });
   const url = `${process.env.CONVEX_SITE_URL}/p/${slug}`;
-  return json({ id: slug, url, title });
+  return json({ id: slug, url, title, updated });
 });
 
 // GET /p/:slug — render the stored HTML as-is.
