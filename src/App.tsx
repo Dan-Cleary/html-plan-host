@@ -84,6 +84,14 @@ function SignIn() {
           ? "Need an account? Sign up"
           : "Already have an account? Sign in"}
       </button>
+      <p className="muted small selfhost">
+        Your plans are private to you. Prefer to keep them off our backend? It's
+        open source —{" "}
+        <a href="https://github.com/Dan-Cleary/html-plan-host" target="_blank" rel="noreferrer">
+          run your own instance
+        </a>
+        .
+      </p>
     </div>
   );
 }
@@ -139,9 +147,19 @@ function ApiKeys() {
   );
 }
 
+function expiryLabel(expiresAt: number): string {
+  const ms = expiresAt - Date.now();
+  if (ms <= 0) return "expired";
+  const d = ms / 86_400_000;
+  if (d >= 1) return `expires in ${Math.round(d)}d`;
+  const h = ms / 3_600_000;
+  return h >= 1 ? `expires in ${Math.round(h)}h` : "expires soon";
+}
+
 function Dashboard() {
   const { signOut } = useAuthActions();
   const plans = useQuery(api.plans.listMine);
+  const del = useMutation(api.plans.deletePlan);
 
   return (
     <>
@@ -170,7 +188,7 @@ function Dashboard() {
       ) : (
         <ul className="list">
           {plans.map((p) => (
-            <li key={p.slug}>
+            <li key={p.slug} className="row">
               <a
                 className="card"
                 href={`${SITE_URL}/p/${p.slug}`}
@@ -184,8 +202,16 @@ function Dashboard() {
                   <span>
                     {p.views} {p.views === 1 ? "view" : "views"}
                   </span>
+                  {p.expiresAt && <span className="exp">{expiryLabel(p.expiresAt)}</span>}
                 </span>
               </a>
+              <button
+                className="mini danger del"
+                title="Delete plan"
+                onClick={() => void del({ id: p._id })}
+              >
+                Delete
+              </button>
             </li>
           ))}
         </ul>

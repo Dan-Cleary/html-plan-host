@@ -16,22 +16,28 @@ function randomToken(len: number): string {
   return s;
 }
 
+// Per-user limit on stored plans (abuse guard for the hosted service).
+const MAX_PLANS_PER_USER = 1000;
+
 // Create or update a plan by slug, scoped to an owner. Called from the HTTP
 // publish action after it resolves the API key to a userId.
 //   new slug          -> insert  ("created")
 //   own existing slug -> overwrite title/html, preserve views ("updated")
 //   someone else's    -> refuse ("conflict") — slugs are a global namespace
+//   over quota         -> refuse ("limit")
 export const upsert = internalMutation({
   args: {
     userId: v.id("users"),
     slug: v.string(),
     title: v.string(),
     html: v.string(),
+    expiresAt: v.optional(v.number()),
   },
   returns: v.union(
     v.literal("created"),
     v.literal("updated"),
     v.literal("conflict"),
+    v.literal("limit"),
   ),
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -40,15 +46,25 @@ export const upsert = internalMutation({
       .unique();
     if (existing) {
       if (existing.userId !== args.userId) return "conflict";
-      await ctx.db.patch(existing._id, { title: args.title, html: args.html });
+      await ctx.db.patch(existing._id, {
+        title: args.title,
+        html: args.html,
+        expiresAt: args.expiresAt,
+      });
       return "updated";
     }
+    const mine = await ctx.db
+      .query("plans")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    if (mine.length >= MAX_PLANS_PER_USER) return "limit";
     await ctx.db.insert("plans", {
       userId: args.userId,
       slug: args.slug,
       title: args.title,
       html: args.html,
       views: 0,
+      expiresAt: args.expiresAt,
     });
     return "created";
   },
@@ -64,7 +80,9 @@ export const getBySlug = query({
       .query("plans")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
-    return plan ? { title: plan.title, html: plan.html } : null;
+    if (!plan) return null;
+    if (plan.expiresAt && plan.expiresAt < Date.now()) return null; // expired
+    return { title: plan.title, html: plan.html };
   },
 });
 
@@ -81,31 +99,69 @@ export const incrementViews = internalMutation({
   },
 });
 
-// The signed-in user's own plans, newest first (no HTML bodies).
+// The signed-in user's own plans, newest first (no HTML bodies). Excludes expired.
 export const listMine = query({
   args: {},
   returns: v.array(
     v.object({
+      _id: v.id("plans"),
       slug: v.string(),
       title: v.string(),
       views: v.number(),
       createdAt: v.number(),
+      expiresAt: v.optional(v.number()),
     }),
   ),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
+    const now = Date.now();
     const plans = await ctx.db
       .query("plans")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
-      .take(100);
-    return plans.map((p) => ({
-      slug: p.slug,
-      title: p.title,
-      views: p.views,
-      createdAt: p._creationTime,
-    }));
+      .take(200);
+    return plans
+      .filter((p) => !p.expiresAt || p.expiresAt > now)
+      .slice(0, 100)
+      .map((p) => ({
+        _id: p._id,
+        slug: p.slug,
+        title: p.title,
+        views: p.views,
+        createdAt: p._creationTime,
+        expiresAt: p.expiresAt,
+      }));
+  },
+});
+
+// Delete one of the signed-in user's own plans.
+export const deletePlan = mutation({
+  args: { id: v.id("plans") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    const plan = await ctx.db.get(args.id);
+    if (plan && plan.userId === userId) await ctx.db.delete(args.id);
+    return null;
+  },
+});
+
+// Cron: delete plans whose expiry has passed.
+export const deleteExpired = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const all = await ctx.db.query("plans").collect();
+    let n = 0;
+    for (const p of all) {
+      if (p.expiresAt && p.expiresAt < now) {
+        await ctx.db.delete(p._id);
+        n++;
+      }
+    }
+    return n;
   },
 });
 

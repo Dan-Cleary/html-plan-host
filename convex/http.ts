@@ -45,22 +45,32 @@ const publish = httpAction(async (ctx, request) => {
   let html = "";
   let title = "";
   let slug = "";
+  let expiresInDays = 0;
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const body = (await request.json()) as {
       title?: unknown;
       html?: unknown;
       slug?: unknown;
+      expiresInDays?: unknown;
     };
     html = typeof body.html === "string" ? body.html : "";
     title = typeof body.title === "string" ? body.title : "";
     slug = typeof body.slug === "string" ? body.slug : "";
+    expiresInDays =
+      typeof body.expiresInDays === "number" ? body.expiresInDays : 0;
   } else {
     html = await request.text();
   }
 
   if (!html.trim()) return json({ error: "missing html" }, 400);
+  // Size cap (Convex doc limit is ~1 MB; leave headroom for other fields).
+  if (html.length > 900_000) {
+    return json({ error: "html too large (max ~900 KB)" }, 413);
+  }
   if (!title) title = extractTitle(html);
+  const expiresAt =
+    expiresInDays > 0 ? Date.now() + expiresInDays * 86_400_000 : undefined;
 
   // Optional custom slug enables stable, updatable URLs: publishing the same
   // slug again overwrites the plan in place. Must be URL-safe.
@@ -77,9 +87,13 @@ const publish = httpAction(async (ctx, request) => {
     slug,
     title,
     html,
+    expiresAt,
   });
   if (result === "conflict") {
     return json({ error: `slug '${slug}' is already taken` }, 409);
+  }
+  if (result === "limit") {
+    return json({ error: "plan limit reached for this account" }, 429);
   }
   const url = `${process.env.CONVEX_SITE_URL}/p/${slug}`;
   return json({ id: slug, url, title, updated: result === "updated" });

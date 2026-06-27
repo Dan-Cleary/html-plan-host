@@ -18,6 +18,9 @@ export default defineSchema({
     html: v.string(),
     // How many times the plan has been viewed.
     views: v.number(),
+    // Optional auto-expiry (ms epoch). Past this, the plan 404s and a daily
+    // cron deletes it. Omitted = permanent.
+    expiresAt: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
     .index("by_user", ["userId"]),

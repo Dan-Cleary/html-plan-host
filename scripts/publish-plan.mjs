@@ -6,6 +6,7 @@
 //   publish-plan --title "PR #39 Review" plan.html
 //   publish-plan --slug auth-refactor plan.html   # stable URL; re-publishing
 //                                                  # the same slug updates it
+//   publish-plan --expires 7d plan.html      # auto-expire after 7 days (also 12h)
 //   cat plan.html | publish-plan            # read HTML from stdin
 //
 // Config (env wins over file): ~/.config/plan-host/config
@@ -35,9 +36,18 @@ function loadConfig() {
   return { url, token };
 }
 
+// Parse a duration like "7d" or "12h" into (fractional) days.
+function parseExpires(s) {
+  const m = /^(\d+(?:\.\d+)?)([dh])$/.exec(s ?? "");
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  return m[2] === "h" ? n / 24 : n;
+}
+
 const args = process.argv.slice(2);
 let title = "";
 let slug = "";
+let expiresInDays = 0;
 let file = "";
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -45,9 +55,11 @@ for (let i = 0; i < args.length; i++) {
   else if (a.startsWith("--title=")) title = a.slice(8);
   else if (a === "--slug") slug = args[++i];
   else if (a.startsWith("--slug=")) slug = a.slice(7);
+  else if (a === "--expires") expiresInDays = parseExpires(args[++i]);
+  else if (a.startsWith("--expires=")) expiresInDays = parseExpires(a.slice(10));
   else if (a === "-h" || a === "--help") {
     console.log(
-      "usage: publish-plan [--title T] [--slug S] [file.html]  (reads stdin if no file)",
+      "usage: publish-plan [--title T] [--slug S] [--expires 7d] [file.html]  (reads stdin if no file)",
     );
     process.exit(0);
   } else file = a;
@@ -67,8 +79,8 @@ if (!html.trim()) {
   process.exit(1);
 }
 
-// Send JSON when we have structured fields (title/slug); otherwise raw HTML.
-const useJson = Boolean(title || slug);
+// Send JSON when we have structured fields; otherwise raw HTML.
+const useJson = Boolean(title || slug || expiresInDays);
 const res = await fetch(`${url.replace(/\/$/, "")}/plans`, {
   method: "POST",
   headers: {
@@ -76,7 +88,12 @@ const res = await fetch(`${url.replace(/\/$/, "")}/plans`, {
     "content-type": useJson ? "application/json" : "text/html",
   },
   body: useJson
-    ? JSON.stringify({ ...(title && { title }), ...(slug && { slug }), html })
+    ? JSON.stringify({
+        ...(title && { title }),
+        ...(slug && { slug }),
+        ...(expiresInDays && { expiresInDays }),
+        html,
+      })
     : html,
 });
 

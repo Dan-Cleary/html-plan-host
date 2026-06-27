@@ -241,6 +241,40 @@
   border-color: rgba(239, 68, 68, 0.4);
 }
 
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.row .card {
+  flex: 1;
+}
+
+.row .del {
+  align-self: center;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.row:hover .del,
+.row .del:focus-visible {
+  opacity: 1;
+}
+
+.exp {
+  color: #f59e0b;
+}
+
+.selfhost {
+  margin-top: 1.5rem;
+  line-height: 1.5;
+}
+
+.selfhost a {
+  color: inherit;
+}
+
 :root {
   --muted: #8b8b94;
   --border: #2a2a30;

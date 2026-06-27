@@ -62,6 +62,7 @@ publish-plan plan.html
 publish-plan --title "PR #39 Review" plan.html
 publish-plan --slug auth-refactor plan.html   # stable URL; re-publishing the
                                                # same slug updates it in place
+publish-plan --expires 7d plan.html            # auto-expire after 7d (also 12h)
 cat plan.html | publish-plan          # read from stdin
 ```
 
@@ -84,15 +85,23 @@ curl -sS -X POST "$PLAN_HOST_URL/plans" \
 # -> {"id":"...","url":"https://....convex.site/p/...","title":"..."}
 ```
 
+## Self-hosting
+
+Don't want your plans on someone else's backend? This is open source — run your own
+instance (see Setup above; Convex + Vercel free tiers cover it). Your plans then live on
+*your* deployment. The hosted instance at html-plan-host.vercel.app is just a convenience.
+
 ## Notes / current posture
 
-- **Privacy:** real per-user auth — your dashboard shows only your plans. The per-plan
-  `/p/:slug` pages stay viewable by anyone with the unguessable slug (the share path).
-- **Open sign-up:** anyone can register, which means you host arbitrary HTML from
-  strangers (served from the sandboxed `*.convex.site` domain, not your apex). Inherent
-  to a "publish HTML → URL" product; add per-user size/count caps before promoting widely.
+- **Privacy:** real per-user auth — your dashboard shows only your plans, and you can
+  **delete** any of them. The per-plan `/p/:slug` pages stay viewable by anyone with the
+  unguessable slug (the share path).
+- **Expiry:** opt-in via `--expires 7d`. Expired plans 404 immediately and a daily cron
+  (`convex/crons.ts`) deletes them. Omit for a permanent plan.
+- **Abuse guards (hosted):** per-plan HTML capped at ~900 KB (413), max 1000 plans per
+  user (429). Open sign-up still means you host strangers' HTML from the sandboxed
+  `*.convex.site` domain — keep an eye on it if it gets popular.
 - **API keys** are stored in plaintext so the dashboard can re-display them — fine for a
   small tool; switch to hashed-once-shown if that matters.
-- **Size:** HTML is stored as a string field (Convex 1 MB/doc limit). Plans are well under.
 - **Mobile:** HTML is served as-is — agents should include `<meta name="viewport">`
   (the `/publish-plan` command does this automatically).
