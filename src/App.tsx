@@ -2,7 +2,12 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import "./App.css";
 
-const SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
+// Derive the HTTP-actions (.convex.site) origin from the client URL so the
+// frontend only needs VITE_CONVEX_URL set in production.
+const CLOUD_URL = import.meta.env.VITE_CONVEX_URL as string;
+const SITE_URL =
+  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
+  CLOUD_URL.replace(".convex.cloud", ".convex.site");
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
