@@ -1,0 +1,36 @@
+:root {
+  --bg: #0d0d0f;
+  --text: #ededf0;
+  --muted: #8b8b94;
+  --border: #2a2a30;
+  --card: #18181b;
+
+  font: 16px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --text: #18181b;
+  }
+}
+
+body {
+  margin: 0;
+}
+
+h1 {
+  color: var(--text);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
