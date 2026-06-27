@@ -38,6 +38,18 @@ export const incrementViews = internalMutation({
   },
 });
 
+// Maintenance: delete every plan. Internal-only (not callable from clients).
+// Run with: npx convex run plans:clearAll '{}' --prod
+export const clearAll = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const all = await ctx.db.query("plans").collect();
+    for (const p of all) await ctx.db.delete(p._id);
+    return all.length;
+  },
+});
+
 // Metadata for the live index page (no HTML bodies, kept light).
 export const listRecent = query({
   args: {},
