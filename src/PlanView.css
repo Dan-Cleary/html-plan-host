@@ -187,4 +187,18 @@
     position: static;
     max-height: none;
   }
+  /* Tapping a block near the top shouldn't bury the composer below the whole
+     plan — pin it to the bottom of the screen as a reachable sheet. */
+  .pv-composer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    border-radius: 14px 14px 0 0;
+    border-color: #f59e0b;
+    background: var(--bg);
+    z-index: 50;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
+  }
 }
