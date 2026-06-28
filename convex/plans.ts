@@ -312,6 +312,109 @@ export const claimWorkspace = mutation({
   },
 });
 
+// Cron: garbage-collect leftovers from anonymous provisioning.
+//   - expired claim tokens
+//   - stale per-IP rate-limit log rows
+//   - empty, stale, unclaimed anonymous users (+ their API keys)
+const ANON_GC_AGE_MS = 7 * 86_400_000;
+export const gcAnonymous = internalMutation({
+  args: {},
+  returns: v.object({
+    users: v.number(),
+    tokens: v.number(),
+    logs: v.number(),
+  }),
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    let tokens = 0;
+    for (const t of await ctx.db.query("claimTokens").collect()) {
+      if (t.expiresAt < now) {
+        await ctx.db.delete(t._id);
+        tokens++;
+      }
+    }
+
+    let logs = 0;
+    const logCutoff = now - 60 * 60 * 1000;
+    for (const l of await ctx.db.query("provisionLog").collect()) {
+      if (l._creationTime < logCutoff) {
+        await ctx.db.delete(l._id);
+        logs++;
+      }
+    }
+
+    let users = 0;
+    for (const u of await ctx.db.query("users").collect()) {
+      if (u.isAnonymous !== true) continue;
+      if (now - u._creationTime < ANON_GC_AGE_MS) continue;
+      const plans = await ctx.db
+        .query("plans")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .take(1);
+      if (plans.length > 0) continue; // still has plans; let them expire first
+      for (const k of await ctx.db
+        .query("apiKeys")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .collect()) {
+        await ctx.db.delete(k._id);
+      }
+      await ctx.db.delete(u._id);
+      users++;
+    }
+    return { users, tokens, logs };
+  },
+});
+
+// Admin: fully delete a user by email (plans, keys, auth records). Internal-only.
+//   npx convex run plans:deleteUserByEmail '{"email":"x@y.com"}' --prod
+export const deleteUserByEmail = internalMutation({
+  args: { email: v.string() },
+  returns: v.object({ deleted: v.boolean(), plans: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", args.email))
+      .unique();
+    if (!user) return { deleted: false, plans: 0 };
+
+    let plans = 0;
+    for (const p of await ctx.db
+      .query("plans")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect()) {
+      await ctx.db.delete(p._id);
+      plans++;
+    }
+    for (const k of await ctx.db
+      .query("apiKeys")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect()) {
+      await ctx.db.delete(k._id);
+    }
+    for (const s of await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", user._id))
+      .collect()) {
+      for (const rt of await ctx.db
+        .query("authRefreshTokens")
+        .withIndex("sessionId", (q) => q.eq("sessionId", s._id))
+        .collect()) {
+        await ctx.db.delete(rt._id);
+      }
+      await ctx.db.delete(s._id);
+    }
+    for (const a of await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", user._id))
+      .collect()) {
+      await ctx.db.delete(a._id);
+    }
+    await ctx.db.delete(user._id);
+    return { deleted: true, plans };
+  },
+});
+
 // Admin maintenance: delete every plan. Internal-only.
 //   npx convex run plans:clearAll '{}' --prod
 export const clearAll = internalMutation({

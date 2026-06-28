@@ -10,4 +10,11 @@ crons.daily(
   internal.plans.deleteExpired,
 );
 
+// Garbage-collect stale anonymous workspaces + provisioning leftovers.
+crons.daily(
+  "gc anonymous workspaces",
+  { hourUTC: 7, minuteUTC: 15 },
+  internal.plans.gcAnonymous,
+);
+
 export default crons;
