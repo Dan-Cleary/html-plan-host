@@ -31,6 +31,14 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+const norm = (s: string) => (s || "").replace(/\s+/g, " ").trim();
+
+function sameSet(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+
 export default function PlanView({ slug }: { slug: string }) {
   const plan = useQuery(api.plans.getBySlug, { slug });
   const comments = useQuery(api.comments.list, { slug });
@@ -42,17 +50,37 @@ export default function PlanView({ slug }: { slug: string }) {
   const onPickRef = useRef<(idx: number, quote: string) => void>(() => {});
   const commentsRef = useRef(comments);
   commentsRef.current = comments;
+  // Resolved comment -> current DOM element (after re-anchoring by content).
+  const commentElsRef = useRef<Map<string, Element>>(new Map());
+  const [orphanedIds, setOrphanedIds] = useState<Set<string>>(new Set());
 
-  // Paint anchored-block highlights from the current comments. Safe to call
-  // both after the iframe loads and whenever comments change.
+  // Re-anchor each comment to a current block and paint highlights. Resolution:
+  // trust the stored index if its text still matches the quote; else search all
+  // blocks for the quoted text (handles re-published plans whose indices shifted);
+  // else the section is gone -> orphaned.
   const applyHighlights = () => {
     const doc = docRef.current;
     const cs = commentsRef.current;
     if (!doc || !cs) return;
     doc.querySelectorAll(".cmt-anchored").forEach((el) => el.classList.remove("cmt-anchored"));
-    new Set(cs.map((c) => c.blockIndex)).forEach((idx) => {
-      doc.querySelector(`[data-pi="${idx}"]`)?.classList.add("cmt-anchored");
-    });
+    const blocks = Array.from(doc.querySelectorAll("[data-pi]"));
+    const elById = new Map<string, Element>();
+    const orphans = new Set<string>();
+    for (const c of cs) {
+      const q = norm(c.quote);
+      let el: Element | null = doc.querySelector(`[data-pi="${c.blockIndex}"]`);
+      if (!(el && q && norm(el.textContent || "").includes(q))) {
+        el = q ? blocks.find((b) => norm(b.textContent || "").includes(q)) ?? null : el;
+      }
+      if (el) {
+        el.classList.add("cmt-anchored");
+        elById.set(c._id, el);
+      } else {
+        orphans.add(c._id);
+      }
+    }
+    commentElsRef.current = elById;
+    setOrphanedIds((prev) => (sameSet(prev, orphans) ? prev : orphans));
   };
 
   const [active, setActive] = useState<{ idx: number; quote: string } | null>(null);
@@ -115,8 +143,8 @@ export default function PlanView({ slug }: { slug: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments, srcDoc]);
 
-  function scrollToBlock(idx: number) {
-    const el = docRef.current?.querySelector(`[data-pi="${idx}"]`);
+  function scrollToComment(id: string) {
+    const el = commentElsRef.current.get(id);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     el.classList.add("cmt-flash");
@@ -220,9 +248,15 @@ export default function PlanView({ slug }: { slug: string }) {
           <ul className="pv-comments">
             {comments.map((c) => (
               <li key={c._id} className="pv-comment">
-                <button className="pv-cquote" onClick={() => scrollToBlock(c.blockIndex)}>
-                  “{c.quote.slice(0, 80) || "(section)"}{c.quote.length > 80 ? "…" : ""}”
-                </button>
+                {orphanedIds.has(c._id) ? (
+                  <span className="pv-cquote pv-orphan" title="The section this referenced changed or was removed when the plan was re-published.">
+                    ⚠ section changed — “{c.quote.slice(0, 60)}{c.quote.length > 60 ? "…" : ""}”
+                  </span>
+                ) : (
+                  <button className="pv-cquote" onClick={() => scrollToComment(c._id)}>
+                    “{c.quote.slice(0, 80) || "(section)"}{c.quote.length > 80 ? "…" : ""}”
+                  </button>
+                )}
                 <div className="pv-cbody">{c.body}</div>
                 <div className="pv-cmeta">
                   <span>{c.authorName || "Anonymous"}</span>

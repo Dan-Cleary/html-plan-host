@@ -153,6 +153,12 @@
   cursor: pointer;
 }
 
+.pv-orphan {
+  color: var(--muted);
+  cursor: default;
+  font-style: normal;
+}
+
 .pv-cbody {
   font-size: 0.9rem;
   white-space: pre-wrap;
