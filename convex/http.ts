@@ -30,6 +30,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+// CORS for browser-called endpoints (the comment composer fetches cross-origin
+// from the frontend to this *.convex.site origin).
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+function corsJson(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...CORS },
+  });
+}
+
 // POST /plans — the agent-facing endpoint.
 // Auth: Authorization: Bearer <per-user API key> (phk_...)
 // Body: raw HTML, or JSON { title?, html, slug? }
@@ -113,6 +127,45 @@ const provision = httpAction(async (ctx, request) => {
   return json({ apiKey: result.apiKey, claimUrl });
 });
 
+// POST /comments — anonymous human comment on a plan. IP rate-limited.
+// Body JSON: { slug, blockIndex, quote, body, authorName? }
+const addComment = httpAction(async (ctx, request) => {
+  const ip =
+    (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() ||
+    "unknown";
+  let b: {
+    slug?: unknown;
+    blockIndex?: unknown;
+    quote?: unknown;
+    body?: unknown;
+    authorName?: unknown;
+  };
+  try {
+    b = await request.json();
+  } catch {
+    return json({ error: "bad json" }, 400);
+  }
+  if (typeof b.slug !== "string" || typeof b.body !== "string") {
+    return corsJson({ error: "slug and body required" }, 400);
+  }
+  const result = await ctx.runMutation(internal.comments.add, {
+    slug: b.slug,
+    blockIndex: typeof b.blockIndex === "number" ? b.blockIndex : -1,
+    quote: typeof b.quote === "string" ? b.quote : "",
+    body: b.body,
+    authorName: typeof b.authorName === "string" ? b.authorName : undefined,
+    ip,
+  });
+  if (result === "rate_limited") return corsJson({ error: "rate limited" }, 429);
+  if (result === "invalid") return corsJson({ error: "invalid comment" }, 400);
+  return corsJson({ ok: true });
+});
+
+// CORS preflight for the comment endpoint.
+const commentsPreflight = httpAction(
+  async () => new Response(null, { status: 204, headers: CORS }),
+);
+
 // GET /p/:slug — render the stored HTML as-is.
 const view = httpAction(async (ctx, request) => {
   const slug = new URL(request.url).pathname.replace(/^\/p\//, "");
@@ -133,6 +186,8 @@ const view = httpAction(async (ctx, request) => {
 const http = httpRouter();
 auth.addHttpRoutes(http); // /api/auth/* routes for Convex Auth
 http.route({ path: "/provision", method: "POST", handler: provision });
+http.route({ path: "/comments", method: "POST", handler: addComment });
+http.route({ path: "/comments", method: "OPTIONS", handler: commentsPreflight });
 http.route({ path: "/plans", method: "POST", handler: publish });
 http.route({ pathPrefix: "/p/", method: "GET", handler: view });
 

@@ -1,0 +1,190 @@
+.planview {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.pv-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pv-load {
+  max-width: 720px;
+  margin: 4rem auto;
+  text-align: center;
+}
+
+.pv-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.pv-back {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.pv-title {
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pv-hint {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.pv-frame {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  min-height: 300px;
+}
+
+/* --- Comment sidebar --- */
+.pv-side {
+  width: 320px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1.25rem;
+  max-height: calc(100vh - 2.5rem);
+  overflow-y: auto;
+}
+
+.pv-side h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.8rem;
+}
+
+.pv-composer {
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  padding: 0.7rem;
+  margin-bottom: 0.9rem;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.pv-quote {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.pv-composer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--card);
+  color: inherit;
+}
+
+.pv-composer input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.82rem;
+  background: var(--card);
+  color: inherit;
+}
+
+.pv-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.mini.primary {
+  background: #22c55e;
+  color: #06250f;
+  border-color: #22c55e;
+  font-weight: 600;
+}
+
+.pv-comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pv-comment {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  background: var(--card);
+}
+
+.pv-cquote {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 0.35rem;
+  color: #f59e0b;
+  font-size: 0.76rem;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.pv-cbody {
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pv-cmeta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.pv-del {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.74rem;
+  padding: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 820px) {
+  .planview {
+    flex-direction: column;
+  }
+  .pv-side {
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+}

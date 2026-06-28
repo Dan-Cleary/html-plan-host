@@ -9,6 +9,7 @@ import {
 } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
+import PlanView from "./PlanView";
 import "./App.css";
 
 const CLOUD_URL = import.meta.env.VITE_CONVEX_URL as string;
@@ -191,12 +192,7 @@ function Dashboard() {
         <ul className="list">
           {plans.map((p) => (
             <li key={p.slug} className="row">
-              <a
-                className="card"
-                href={`${SITE_URL}/p/${p.slug}`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className="card" href={`/plan/${p.slug}`}>
                 <span className="title">{p.title}</span>
                 <span className="meta">
                   <span className="slug">/{p.slug}</span>
@@ -279,7 +275,13 @@ function ClaimPage({ token }: { token: string }) {
 }
 
 function App() {
-  const claimMatch = window.location.pathname.match(/^\/claim\/(.+)$/);
+  const path = window.location.pathname;
+  const claimMatch = path.match(/^\/claim\/(.+)$/);
+  const planMatch = path.match(/^\/plan\/(.+)$/);
+
+  if (planMatch) {
+    return <PlanView slug={decodeURIComponent(planMatch[1])} />;
+  }
 
   return (
     <main className="wrap">

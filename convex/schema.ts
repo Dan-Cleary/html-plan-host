@@ -47,4 +47,16 @@ export default defineSchema({
   provisionLog: defineTable({
     ip: v.string(),
   }).index("by_ip", ["ip"]),
+
+  // Anonymous human comments anchored to a block of a rendered plan.
+  comments: defineTable({
+    slug: v.string(),
+    blockIndex: v.number(), // index of the block element the selection sits in
+    quote: v.string(), // the selected text (for display + re-anchoring)
+    body: v.string(),
+    authorName: v.optional(v.string()),
+    ip: v.string(), // for rate-limiting; never returned to clients
+  })
+    .index("by_slug", ["slug"])
+    .index("by_ip", ["ip"]),
 });
