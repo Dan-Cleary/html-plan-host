@@ -166,6 +166,33 @@ const commentsPreflight = httpAction(
   async () => new Response(null, { status: 204, headers: CORS }),
 );
 
+// GET /agent — plain-text self-onboarding for agents that only have the API
+// host. Mirrors /llms.txt on the frontend so the publish endpoint self-describes.
+const AGENT_DOC = `HTML Plan Host — publish HTML, get a shareable URL.
+
+Two steps, no account needed:
+
+  HOST=${"https://"}${"vibrant-barracuda-527.convex.site"}
+  KEY=$(curl -s -X POST "$HOST/provision" | sed -n 's/.*"apiKey":"\\([^"]*\\)".*/\\1/p')
+  curl -s -X POST "$HOST/plans" \\
+    -H "Authorization: Bearer $KEY" -H "content-type: application/json" \\
+    -d '{"title":"My Plan","html":"<!doctype html><h1>Hello</h1>"}'
+
+The "url" in the response renders your HTML as-is — that is the shareable link.
+
+Body fields: html (required, self-contained doc, inline CSS), title (optional),
+slug (optional stable/updatable URL), expiresInDays (optional auto-delete).
+Humans comment at https://html-plan-host.vercel.app/plan/<slug>.
+Full docs: https://html-plan-host.vercel.app/llms.txt
+`;
+const agentDoc = httpAction(
+  async () =>
+    new Response(AGENT_DOC, {
+      status: 200,
+      headers: { "content-type": "text/plain; charset=utf-8", ...CORS },
+    }),
+);
+
 // GET /p/:slug — render the stored HTML as-is.
 const view = httpAction(async (ctx, request) => {
   const slug = new URL(request.url).pathname.replace(/^\/p\//, "");
@@ -189,6 +216,7 @@ http.route({ path: "/provision", method: "POST", handler: provision });
 http.route({ path: "/comments", method: "POST", handler: addComment });
 http.route({ path: "/comments", method: "OPTIONS", handler: commentsPreflight });
 http.route({ path: "/plans", method: "POST", handler: publish });
+http.route({ path: "/agent", method: "GET", handler: agentDoc });
 http.route({ pathPrefix: "/p/", method: "GET", handler: view });
 
 export default http;
