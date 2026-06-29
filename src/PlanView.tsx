@@ -34,6 +34,17 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// "in 6 days" / "in 5 hours" / "soon" — for the temporary-plan banner.
+function expiresInLabel(expiresAt: number): string {
+  const ms = expiresAt - Date.now();
+  if (ms <= 0) return "soon";
+  const d = ms / 86_400_000;
+  if (d >= 1) return `in ${Math.round(d)} day${Math.round(d) === 1 ? "" : "s"}`;
+  const h = ms / 3_600_000;
+  if (h >= 1) return `in ${Math.round(h)} hour${Math.round(h) === 1 ? "" : "s"}`;
+  return "soon";
+}
+
 const norm = (s: string) => (s || "").replace(/\s+/g, " ").trim();
 
 function sameSet(a: Set<string>, b: Set<string>): boolean {
@@ -241,6 +252,11 @@ export default function PlanView({ slug }: { slug: string }) {
             {commenting ? "Done" : `💬 Comments${count ? ` (${count})` : ""}`}
           </button>
         </div>
+        {plan.expiresAt && (
+          <p className="pv-expiry" title="Anonymous plans are temporary. Claim the workspace to keep it permanently.">
+            ⏳ Temporary — this plan expires {expiresInLabel(plan.expiresAt)}.
+          </p>
+        )}
         {commenting && (
           <p className="pv-hint">Click any part of the plan to comment on it.</p>
         )}

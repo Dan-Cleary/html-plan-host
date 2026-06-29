@@ -86,7 +86,14 @@ export const upsert = internalMutation({
 // Intentionally NOT owner-scoped — anyone with the unguessable slug can view.
 export const getBySlug = query({
   args: { slug: v.string() },
-  returns: v.union(v.object({ title: v.string(), html: v.string() }), v.null()),
+  returns: v.union(
+    v.object({
+      title: v.string(),
+      html: v.string(),
+      expiresAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const plan = await ctx.db
       .query("plans")
@@ -94,7 +101,7 @@ export const getBySlug = query({
       .unique();
     if (!plan) return null;
     if (plan.expiresAt && plan.expiresAt < Date.now()) return null; // expired
-    return { title: plan.title, html: plan.html };
+    return { title: plan.title, html: plan.html, expiresAt: plan.expiresAt };
   },
 });
 
@@ -424,5 +431,59 @@ export const clearAll = internalMutation({
     const all = await ctx.db.query("plans").collect();
     for (const p of all) await ctx.db.delete(p._id);
     return all.length;
+  },
+});
+
+// Wipe test data for a clean slate: all plans + comments + claim tokens +
+// provision log, plus throwaway anonymous workspaces and their keys. KEEPS real
+// signed-up users and their API keys, so a human can re-test without re-auth.
+export const resetTestData = internalMutation({
+  args: {},
+  returns: v.object({
+    plans: v.number(),
+    comments: v.number(),
+    claimTokens: v.number(),
+    provisionLog: v.number(),
+    anonUsers: v.number(),
+    anonKeys: v.number(),
+  }),
+  handler: async (ctx) => {
+    let plans = 0;
+    for (const p of await ctx.db.query("plans").collect()) {
+      await ctx.db.delete(p._id);
+      plans++;
+    }
+    let comments = 0;
+    for (const c of await ctx.db.query("comments").collect()) {
+      await ctx.db.delete(c._id);
+      comments++;
+    }
+    let claimTokens = 0;
+    for (const t of await ctx.db.query("claimTokens").collect()) {
+      await ctx.db.delete(t._id);
+      claimTokens++;
+    }
+    let provisionLog = 0;
+    for (const l of await ctx.db.query("provisionLog").collect()) {
+      await ctx.db.delete(l._id);
+      provisionLog++;
+    }
+    const anonIds = new Set<string>();
+    let anonUsers = 0;
+    for (const u of await ctx.db.query("users").collect()) {
+      if (u.isAnonymous === true) {
+        anonIds.add(u._id);
+        await ctx.db.delete(u._id);
+        anonUsers++;
+      }
+    }
+    let anonKeys = 0;
+    for (const k of await ctx.db.query("apiKeys").collect()) {
+      if (anonIds.has(k.userId)) {
+        await ctx.db.delete(k._id);
+        anonKeys++;
+      }
+    }
+    return { plans, comments, claimTokens, provisionLog, anonUsers, anonKeys };
   },
 });
