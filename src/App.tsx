@@ -120,12 +120,18 @@ function ApiKeys() {
         </button>
       </div>
       <p className="muted small">
-        Your agents publish with one of these. Put it in{" "}
-        <code>~/.config/plan-host/config</code>:
+        Generate a key and hand it to your coding agent — that's all it needs to
+        publish. Point the agent at{" "}
+        <a href="/llms.txt" target="_blank" rel="noreferrer">
+          /llms.txt
+        </a>{" "}
+        for the full recipe, or give it this one-liner:
       </p>
       <pre className="snippet">
-        PLAN_HOST_URL={SITE_URL}
-        {"\n"}PLAN_HOST_TOKEN=&lt;your key below&gt;
+        curl -X POST {SITE_URL}/plans \{"\n"}
+        {"  "}-H "Authorization: Bearer &lt;your key below&gt;" \{"\n"}
+        {"  "}-H "content-type: application/json" \{"\n"}
+        {"  "}-d '{"{"}"html":"&lt;!doctype html&gt;&lt;h1&gt;Hello&lt;/h1&gt;"{"}"}'
       </pre>
       {keys === undefined ? (
         <p className="muted">Loading…</p>
