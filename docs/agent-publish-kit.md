@@ -19,8 +19,9 @@ curl -s -X POST "$HOST/plans" \
   -d '{"title":"My Plan","html":"<!doctype html><h1>Hello</h1><p>The plan.</p>"}'
 ```
 
-The `url` field in the response is the shareable link. Open it: the raw HTML
-renders as-is. Append nothing — it's already live.
+The `url` field is the raw shareable link (renders the HTML as-is). The
+`collabUrl` field is the human view where anyone can comment on sections — hand
+that one to a person.
 
 ## Body fields (step 2)
 
@@ -36,8 +37,8 @@ renders as-is. Append nothing — it's already live.
 - **Self-contained HTML only.** Inline your CSS in a `<style>` tag. No external
   asset hosting — one document in, one URL out.
 - **The collaborative view** (humans can click any section and comment, no
-  account needed) lives at `https://html-plan-host.vercel.app/plan/<slug>`,
-  where `<slug>` is the last path segment of the returned `url`.
+  account needed) is returned as `collabUrl`
+  (`https://html-plan-host.vercel.app/plan/<slug>`).
 - The workspace you minted is anonymous and throwaway (plans expire in ~7 days)
   until a human "claims" it via the `claimUrl` — then its plans become permanent
   and move into their account.

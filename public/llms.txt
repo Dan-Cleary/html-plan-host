@@ -15,9 +15,10 @@ API host: https://vibrant-barracuda-527.convex.site
    Header: Authorization: Bearer <apiKey>
    Header: content-type: application/json
    Body:   { "html": "<!doctype html>...", "title"?: "...", "slug"?: "...", "expiresInDays"?: N }
-   ->  { "url": "https://vibrant-barracuda-527.convex.site/p/<slug>", "title": "...", "updated": false }
+   ->  { "url": ".../p/<slug>", "collabUrl": ".../plan/<slug>", "title": "...", "updated": false }
 
-The returned `url` renders your HTML as-is. That is the shareable link.
+The returned `url` renders your HTML as-is (the raw shareable link). `collabUrl`
+is the human view where anyone can comment on sections — hand that to a person.
 
 ## Shell example
 
@@ -35,8 +36,8 @@ curl -s -X POST "$HOST/plans" \
   tag — there is no external asset hosting.
 - `slug` gives a stable, updatable URL: re-publishing the same slug overwrites
   the plan in place. Omit it for a random unguessable slug.
-- Humans can comment on any section (no account) at the collaborative view:
-  https://html-plan-host.vercel.app/plan/<slug>
+- Humans can comment on any section (no account) at the collaborative view —
+  use the `collabUrl` from the response (https://html-plan-host.vercel.app/plan/<slug>)
 - Anonymous workspaces are throwaway (plans expire in ~7 days) until a human
   opens the `claimUrl` to claim them into a permanent account.
 

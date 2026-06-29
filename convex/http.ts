@@ -110,7 +110,10 @@ const publish = httpAction(async (ctx, request) => {
     return json({ error: "plan limit reached for this account" }, 429);
   }
   const url = `${process.env.CONVEX_SITE_URL}/p/${slug}`;
-  return json({ id: slug, url, title, updated: result === "updated" });
+  // Human-facing collaborative view lives on the frontend (SITE_URL), so agents
+  // can hand a person the commentable link without reconstructing the host.
+  const collabUrl = `${process.env.SITE_URL}/plan/${slug}`;
+  return json({ id: slug, url, collabUrl, title, updated: result === "updated" });
 });
 
 // POST /provision — unauthenticated agent self-signup.
@@ -178,11 +181,11 @@ Two steps, no account needed:
     -H "Authorization: Bearer $KEY" -H "content-type: application/json" \\
     -d '{"title":"My Plan","html":"<!doctype html><h1>Hello</h1>"}'
 
-The "url" in the response renders your HTML as-is — that is the shareable link.
+The response "url" renders your HTML as-is (raw shareable link); "collabUrl" is
+the human view where anyone can comment on sections — hand that to a person.
 
 Body fields: html (required, self-contained doc, inline CSS), title (optional),
 slug (optional stable/updatable URL), expiresInDays (optional auto-delete).
-Humans comment at https://html-plan-host.vercel.app/plan/<slug>.
 Full docs: https://html-plan-host.vercel.app/llms.txt
 `;
 const agentDoc = httpAction(
