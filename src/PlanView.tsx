@@ -14,12 +14,13 @@ const BLOCK_SELECTOR =
   "p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,td,th,figcaption,dt,dd,img";
 
 // Hover affordance + clickability only appear in comment mode (body.commenting),
-// so the default view reads like a plain rendered page. Anchored highlights are
-// always visible so a reader can see which sections already have notes.
+// so the default view reads like a plain rendered page. A comment's block is
+// only highlighted on demand — when you hover (.cmt-hover) or click (.cmt-flash)
+// that comment in the sidebar. Nothing is persistently colored.
 const FRAME_STYLE = `
   body.commenting [data-pi]{cursor:pointer;}
   body.commenting [data-pi]:hover{outline:2px solid rgba(34,197,94,.5);outline-offset:2px;}
-  .cmt-anchored{background:rgba(245,158,11,.14);box-shadow:inset 3px 0 0 #f59e0b;}
+  .cmt-hover{background:rgba(245,158,11,.16);box-shadow:inset 3px 0 0 #f59e0b;}
   .cmt-flash{animation:cmtflash 1.1s ease-out;}
   @keyframes cmtflash{0%{background:rgba(34,197,94,.45);}100%{background:transparent;}}
 `;
@@ -75,15 +76,15 @@ export default function PlanView({ slug }: { slug: string }) {
   const commentingRef = useRef(commenting);
   commentingRef.current = commenting;
 
-  // Re-anchor each comment to a current block and paint highlights. Resolution:
-  // trust the stored index if its text still matches the quote; else search all
-  // blocks for the quoted text (handles re-published plans whose indices shifted);
-  // else the section is gone -> orphaned.
-  const applyHighlights = () => {
+  // Resolve each comment to a current block (for hover/click highlighting and
+  // orphan detection) WITHOUT painting anything persistent. Resolution: trust the
+  // stored index if its text still matches the quote; else search all blocks for
+  // the quoted text (handles re-published plans whose indices shifted); else the
+  // section is gone -> orphaned.
+  const resolveAnchors = () => {
     const doc = docRef.current;
     const cs = commentsRef.current;
     if (!doc || !cs) return;
-    doc.querySelectorAll(".cmt-anchored").forEach((el) => el.classList.remove("cmt-anchored"));
     const blocks = Array.from(doc.querySelectorAll("[data-pi]"));
     const elById = new Map<string, Element>();
     const orphans = new Set<string>();
@@ -93,16 +94,17 @@ export default function PlanView({ slug }: { slug: string }) {
       if (!(el && q && norm(el.textContent || "").includes(q))) {
         el = q ? blocks.find((b) => norm(b.textContent || "").includes(q)) ?? null : el;
       }
-      if (el) {
-        el.classList.add("cmt-anchored");
-        elById.set(c._id, el);
-      } else {
-        orphans.add(c._id);
-      }
+      if (el) elById.set(c._id, el);
+      else orphans.add(c._id);
     }
     commentElsRef.current = elById;
     setOrphanedIds((prev) => (sameSet(prev, orphans) ? prev : orphans));
   };
+
+  // Transient highlight while hovering a comment in the sidebar.
+  function setCommentHover(id: string, on: boolean) {
+    commentElsRef.current.get(id)?.classList.toggle("cmt-hover", on);
+  }
 
   const [active, setActive] = useState<{ idx: number; quote: string } | null>(null);
   const [body, setBody] = useState("");
@@ -160,12 +162,12 @@ export default function PlanView({ slug }: { slug: string }) {
         .slice(0, 300);
       onPickRef.current(idx, quote);
     });
-    applyHighlights();
+    resolveAnchors();
   };
 
-  // Re-paint anchored-block highlights whenever comments change.
+  // Re-resolve comment anchors whenever comments or the document change.
   useEffect(() => {
-    applyHighlights();
+    resolveAnchors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments, srcDoc]);
 
@@ -310,7 +312,12 @@ export default function PlanView({ slug }: { slug: string }) {
                       ⚠ section changed — “{c.quote.slice(0, 60)}{c.quote.length > 60 ? "…" : ""}”
                     </span>
                   ) : (
-                    <button className="pv-cquote" onClick={() => scrollToComment(c._id)}>
+                    <button
+                      className="pv-cquote"
+                      onClick={() => scrollToComment(c._id)}
+                      onMouseEnter={() => setCommentHover(c._id, true)}
+                      onMouseLeave={() => setCommentHover(c._id, false)}
+                    >
                       “{c.quote.slice(0, 80) || "(section)"}{c.quote.length > 80 ? "…" : ""}”
                     </button>
                   )}
