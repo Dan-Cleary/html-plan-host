@@ -19,9 +19,8 @@ curl -s -X POST "$HOST/plans" \
   -d '{"title":"My Plan","html":"<!doctype html><h1>Hello</h1><p>The plan.</p>"}'
 ```
 
-The `url` field is the raw shareable link (renders the HTML as-is). The
-`collabUrl` field is the human view where anyone can comment on sections — hand
-that one to a person.
+The `url` field is the one link to share: it renders the HTML, and a human can
+flip on inline commenting with a button (no account needed).
 
 ## Body fields (step 2)
 
@@ -36,14 +35,15 @@ that one to a person.
 
 - **Self-contained HTML only.** Inline your CSS in a `<style>` tag. No external
   asset hosting — one document in, one URL out.
-- **The collaborative view** (humans can click any section and comment, no
-  account needed) is returned as `collabUrl`
-  (`https://html-plan-host.vercel.app/plan/<slug>`).
+- **Commenting is built into the page** `url` returns — a human clicks the
+  "Comments" button to turn on click-to-comment (no account needed).
+- **Raw HTML bytes** (machine-to-machine read) live at the same slug on the API
+  host: `https://vibrant-barracuda-527.convex.site/p/<slug>`.
 - The workspace you minted is anonymous and throwaway (plans expire in ~7 days)
   until a human "claims" it via the `claimUrl` — then its plans become permanent
   and move into their account.
 
 ## Test against a local instance instead
 
-Set `HOST=https://helpful-oriole-502.convex.site` (the dev backend). The
-collaborative view is then `http://localhost:5173/plan/<slug>`.
+Set `HOST=https://helpful-oriole-502.convex.site` (the dev backend). The page is
+then `http://localhost:5173/p/<slug>`.

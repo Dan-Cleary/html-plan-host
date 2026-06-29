@@ -198,7 +198,7 @@ function Dashboard() {
         <ul className="list">
           {plans.map((p) => (
             <li key={p.slug} className="row">
-              <a className="card" href={`/plan/${p.slug}`}>
+              <a className="card" href={`/p/${p.slug}`}>
                 <span className="title">{p.title}</span>
                 <span className="meta">
                   <span className="slug">/{p.slug}</span>
@@ -283,7 +283,7 @@ function ClaimPage({ token }: { token: string }) {
 function App() {
   const path = window.location.pathname;
   const claimMatch = path.match(/^\/claim\/(.+)$/);
-  const planMatch = path.match(/^\/plan\/(.+)$/);
+  const planMatch = path.match(/^\/(?:plan|p)\/(.+)$/);
 
   if (planMatch) {
     return <PlanView slug={decodeURIComponent(planMatch[1])} />;

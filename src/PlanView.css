@@ -1,10 +1,15 @@
+/* Default: one clean column. Comment mode opens the sidebar alongside. */
 .planview {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.planview.commenting {
   display: flex;
   align-items: flex-start;
   gap: 1.25rem;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 1.25rem;
+  max-width: 1180px;
 }
 
 .pv-main {
@@ -185,7 +190,7 @@
 }
 
 @media (max-width: 820px) {
-  .planview {
+  .planview.commenting {
     flex-direction: column;
   }
   .pv-side {

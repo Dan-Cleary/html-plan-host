@@ -13,9 +13,12 @@ const NAME_KEY = "planHostCommenterName";
 const BLOCK_SELECTOR =
   "p,li,h1,h2,h3,h4,h5,h6,blockquote,pre,td,th,figcaption,dt,dd,img";
 
+// Hover affordance + clickability only appear in comment mode (body.commenting),
+// so the default view reads like a plain rendered page. Anchored highlights are
+// always visible so a reader can see which sections already have notes.
 const FRAME_STYLE = `
-  [data-pi]{cursor:pointer;}
-  [data-pi]:hover{outline:2px solid rgba(34,197,94,.5);outline-offset:2px;}
+  body.commenting [data-pi]{cursor:pointer;}
+  body.commenting [data-pi]:hover{outline:2px solid rgba(34,197,94,.5);outline-offset:2px;}
   .cmt-anchored{background:rgba(245,158,11,.14);box-shadow:inset 3px 0 0 #f59e0b;}
   .cmt-flash{animation:cmtflash 1.1s ease-out;}
   @keyframes cmtflash{0%{background:rgba(34,197,94,.45);}100%{background:transparent;}}
@@ -54,6 +57,13 @@ export default function PlanView({ slug }: { slug: string }) {
   const commentElsRef = useRef<Map<string, Element>>(new Map());
   const [orphanedIds, setOrphanedIds] = useState<Set<string>>(new Set());
 
+  // Single-URL design: the page renders the plan clean by default; commenting is
+  // a mode you toggle on. `commenting` drives both the layout and whether blocks
+  // are clickable (gated through a ref so the iframe click listener stays fresh).
+  const [commenting, setCommenting] = useState(false);
+  const commentingRef = useRef(commenting);
+  commentingRef.current = commenting;
+
   // Re-anchor each comment to a current block and paint highlights. Resolution:
   // trust the stored index if its text still matches the quote; else search all
   // blocks for the quoted text (handles re-published plans whose indices shifted);
@@ -87,8 +97,11 @@ export default function PlanView({ slug }: { slug: string }) {
   const [body, setBody] = useState("");
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? "");
   const [posting, setPosting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   onPickRef.current = (idx, quote) => setActive({ idx, quote });
+
+  const pageUrl = `${window.location.origin}/p/${slug}`;
 
   // Sanitize + tag block elements with a stable index, as a full srcDoc.
   const srcDoc = useMemo(() => {
@@ -124,7 +137,9 @@ export default function PlanView({ slug }: { slug: string }) {
     fit();
     setTimeout(fit, 150);
     setTimeout(fit, 500);
+    doc.body.classList.toggle("commenting", commentingRef.current);
     doc.body.addEventListener("click", (e) => {
+      if (!commentingRef.current) return;
       const el = (e.target as Element | null)?.closest?.("[data-pi]");
       if (!el) return;
       const idx = Number(el.getAttribute("data-pi"));
@@ -142,6 +157,18 @@ export default function PlanView({ slug }: { slug: string }) {
     applyHighlights();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comments, srcDoc]);
+
+  // Reflect comment-mode into the iframe (hover affordance + clickability).
+  useEffect(() => {
+    docRef.current?.body?.classList.toggle("commenting", commenting);
+  }, [commenting]);
+
+  function toggleCommenting() {
+    setCommenting((on) => {
+      if (on) setActive(null); // leaving comment mode closes any open composer
+      return !on;
+    });
+  }
 
   function scrollToComment(id: string) {
     const el = commentElsRef.current.get(id);
@@ -187,8 +214,10 @@ export default function PlanView({ slug }: { slug: string }) {
       </div>
     );
 
+  const count = comments?.length ?? 0;
+
   return (
-    <div className="planview">
+    <div className={`planview ${commenting ? "commenting" : ""}`}>
       <div className="pv-main">
         <div className="pv-bar">
           <a className="pv-back" href="/">← plans</a>
@@ -196,14 +225,25 @@ export default function PlanView({ slug }: { slug: string }) {
           <button
             className="mini"
             onClick={() => {
-              void navigator.clipboard.writeText(`${SITE_URL}/p/${slug}`);
+              void navigator.clipboard.writeText(pageUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
             }}
-            title="Copy the raw shareable URL (for agents)"
+            title="Copy this page's URL"
           >
-            Copy share URL
+            {copied ? "Copied" : "Copy link"}
+          </button>
+          <button
+            className={`mini ${commenting ? "primary" : ""}`}
+            onClick={toggleCommenting}
+            title={commenting ? "Done commenting" : "Comment on the plan"}
+          >
+            {commenting ? "Done" : `💬 Comments${count ? ` (${count})` : ""}`}
           </button>
         </div>
-        <p className="pv-hint">Click any part of the plan to comment on it.</p>
+        {commenting && (
+          <p className="pv-hint">Click any part of the plan to comment on it.</p>
+        )}
         <iframe
           ref={iframeRef}
           className="pv-frame"
@@ -214,64 +254,66 @@ export default function PlanView({ slug }: { slug: string }) {
         />
       </div>
 
-      <aside className="pv-side">
-        <h2>Comments {comments ? `(${comments.length})` : ""}</h2>
+      {commenting && (
+        <aside className="pv-side">
+          <h2>Comments {comments ? `(${count})` : ""}</h2>
 
-        {active && (
-          <div className="pv-composer">
-            <div className="pv-quote">“{active.quote.slice(0, 120)}{active.quote.length > 120 ? "…" : ""}”</div>
-            <textarea
-              autoFocus
-              placeholder="Your comment…"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
-            <input
-              placeholder="Your name (optional)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <div className="pv-composer-actions">
-              <button className="mini" onClick={() => setActive(null)}>Cancel</button>
-              <button className="mini primary" disabled={posting || !body.trim()} onClick={() => void post()}>
-                {posting ? "…" : "Post"}
-              </button>
+          {active && (
+            <div className="pv-composer">
+              <div className="pv-quote">“{active.quote.slice(0, 120)}{active.quote.length > 120 ? "…" : ""}”</div>
+              <textarea
+                autoFocus
+                placeholder="Your comment…"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+              <input
+                placeholder="Your name (optional)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <div className="pv-composer-actions">
+                <button className="mini" onClick={() => setActive(null)}>Cancel</button>
+                <button className="mini primary" disabled={posting || !body.trim()} onClick={() => void post()}>
+                  {posting ? "…" : "Post"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {comments === undefined ? (
-          <p className="muted">Loading…</p>
-        ) : comments.length === 0 ? (
-          <p className="muted">No comments yet. Click a section of the plan to add one.</p>
-        ) : (
-          <ul className="pv-comments">
-            {comments.map((c) => (
-              <li key={c._id} className="pv-comment">
-                {orphanedIds.has(c._id) ? (
-                  <span className="pv-cquote pv-orphan" title="The section this referenced changed or was removed when the plan was re-published.">
-                    ⚠ section changed — “{c.quote.slice(0, 60)}{c.quote.length > 60 ? "…" : ""}”
-                  </span>
-                ) : (
-                  <button className="pv-cquote" onClick={() => scrollToComment(c._id)}>
-                    “{c.quote.slice(0, 80) || "(section)"}{c.quote.length > 80 ? "…" : ""}”
-                  </button>
-                )}
-                <div className="pv-cbody">{c.body}</div>
-                <div className="pv-cmeta">
-                  <span>{c.authorName || "Anonymous"}</span>
-                  <span>{timeAgo(c.createdAt)}</span>
-                  {isAuthenticated && (
-                    <button className="pv-del" onClick={() => void removeComment({ id: c._id })}>
-                      delete
+          {comments === undefined ? (
+            <p className="muted">Loading…</p>
+          ) : comments.length === 0 ? (
+            <p className="muted">No comments yet. Click a section of the plan to add one.</p>
+          ) : (
+            <ul className="pv-comments">
+              {comments.map((c) => (
+                <li key={c._id} className="pv-comment">
+                  {orphanedIds.has(c._id) ? (
+                    <span className="pv-cquote pv-orphan" title="The section this referenced changed or was removed when the plan was re-published.">
+                      ⚠ section changed — “{c.quote.slice(0, 60)}{c.quote.length > 60 ? "…" : ""}”
+                    </span>
+                  ) : (
+                    <button className="pv-cquote" onClick={() => scrollToComment(c._id)}>
+                      “{c.quote.slice(0, 80) || "(section)"}{c.quote.length > 80 ? "…" : ""}”
                     </button>
                   )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </aside>
+                  <div className="pv-cbody">{c.body}</div>
+                  <div className="pv-cmeta">
+                    <span>{c.authorName || "Anonymous"}</span>
+                    <span>{timeAgo(c.createdAt)}</span>
+                    {isAuthenticated && (
+                      <button className="pv-del" onClick={() => void removeComment({ id: c._id })}>
+                        delete
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      )}
     </div>
   );
 }
