@@ -266,6 +266,22 @@
   color: #f59e0b;
 }
 
+.agents-cta {
+  margin-top: 1.5rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.agents-cta a {
+  color: var(--muted);
+  margin-left: auto;
+}
+
 .selfhost {
   margin-top: 1.5rem;
   line-height: 1.5;

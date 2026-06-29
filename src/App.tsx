@@ -27,11 +27,15 @@ function timeAgo(ts: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+const AGENT_PROMPT =
+  "Read https://html-plan-host.vercel.app/llms.txt and follow it to publish an HTML plan, then give me the shareable URL.";
+
 function SignIn({ intro }: { intro?: string }) {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   return (
     <div className="gate">
@@ -87,6 +91,24 @@ function SignIn({ intro }: { intro?: string }) {
           ? "Need an account? Sign up"
           : "Already have an account? Sign in"}
       </button>
+      <div className="agents-cta">
+        <span className="muted small">Publishing from a coding agent?</span>
+        <button
+          className="mini"
+          onClick={() => {
+            void navigator.clipboard.writeText(AGENT_PROMPT);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          title="Copy a ready-to-paste prompt for Claude Code, Codex, etc."
+        >
+          {copied ? "Copied" : "Copy agent prompt"}
+        </button>
+        <a className="muted small" href="/llms.txt" target="_blank" rel="noreferrer">
+          or read llms.txt
+        </a>
+      </div>
+
       <p className="muted small selfhost">
         Your plans are private to you. Prefer to keep them off our backend? It's
         open source —{" "}
