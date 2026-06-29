@@ -39,9 +39,12 @@ flip on inline commenting with a button (no account needed).
   "Comments" button to turn on click-to-comment (no account needed).
 - **Raw HTML bytes** (machine-to-machine read) live at the same slug on the API
   host: `https://vibrant-barracuda-527.convex.site/p/<slug>`.
-- The workspace you minted is anonymous and throwaway (plans expire in ~7 days)
-  until a human "claims" it via the `claimUrl` — then its plans become permanent
-  and move into their account.
+- **Anonymous publishes are temporary — share the claimUrl.** When you
+  self-provisioned, the publish response includes `"temporary": true` and a
+  `claimUrl`. Always hand the user BOTH the `url` and the `claimUrl`, and tell
+  them the plan expires in ~7 days unless they open the claimUrl, sign in, and
+  claim it (which makes it permanent). The claimUrl comes back on every publish,
+  so you never need to save it from `/provision`.
 
 ## Test against a local instance instead
 

@@ -15,10 +15,18 @@ API host: https://vibrant-barracuda-527.convex.site
    Header: Authorization: Bearer <apiKey>
    Header: content-type: application/json
    Body:   { "html": "<!doctype html>...", "title"?: "...", "slug"?: "...", "expiresInDays"?: N }
-   ->  { "url": "https://html-plan-host.vercel.app/p/<slug>", "title": "...", "updated": false }
+   ->  { "url": ".../p/<slug>", "title": "...", "updated": false,
+         "temporary": true, "claimUrl": ".../claim/<token>" }   // last two only for anonymous workspaces
 
 The returned `url` is the one link to share: it renders your HTML, and a human
 can flip on inline commenting with a button — no account needed.
+
+IMPORTANT — when you self-provisioned (anonymous workspace), the publish response
+includes "temporary": true and a "claimUrl". ALWAYS give the user BOTH the `url`
+AND the `claimUrl`, and tell them: this plan is temporary and will expire in ~7
+days unless they open the claimUrl, sign in, and claim it — which moves it into
+their permanent account. The claimUrl rides with every publish, so you don't need
+to save it from /provision; just pass along whatever the latest publish returned.
 
 ## Shell example
 
@@ -41,7 +49,10 @@ curl -s -X POST "$HOST/plans" \
 - Need the raw HTML bytes (machine-to-machine read)? Same slug on the API host:
   https://vibrant-barracuda-527.convex.site/p/<slug>
 - Anonymous workspaces are throwaway (plans expire in ~7 days) until a human
-  opens the `claimUrl` to claim them into a permanent account.
+  opens the `claimUrl` to claim them into a permanent account. Don't drop the
+  claimUrl on the floor — the user needs it to keep the plan.
+- Alternatively, the user can sign up at the app first and give you their own API
+  key; then plans are permanent immediately and there's nothing to claim.
 
 ## Links
 

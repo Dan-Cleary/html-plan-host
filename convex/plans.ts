@@ -245,7 +245,9 @@ export const revokeApiKey = mutation({
 // --- Agent self-provisioning + human claim ---
 
 const PROVISION_PER_IP_PER_HOUR = 10;
-const CLAIM_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// Match the anonymous plan TTL so a plan that's still alive can always be
+// claimed (a shorter window would strand living plans).
+const CLAIM_TOKEN_TTL_MS = ANON_PLAN_TTL_MS;
 
 // Create an anonymous workspace (user + API key + claim token). Called by the
 // unauthenticated POST /provision endpoint, so it rate-limits by IP.
@@ -278,6 +280,55 @@ export const provisionWorkspace = internalMutation({
       expiresAt: Date.now() + CLAIM_TOKEN_TTL_MS,
     });
     return { apiKey, claimToken };
+  },
+});
+
+// Return a valid claim token for an anonymous workspace, reusing a live one or
+// minting a fresh one. Returns null for non-anonymous (already-owned) workspaces.
+// Used by publish so the claimUrl rides with every anonymous publish — the agent
+// can't lose it the way it can lose the one-time provision response.
+export const claimTokenForWorkspace = internalMutation({
+  args: { userId: v.id("users") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user || user.isAnonymous !== true) return null;
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("claimTokens")
+      .withIndex("by_workspace", (q) => q.eq("workspaceUserId", args.userId))
+      .collect();
+    const live = existing.find((t) => t.expiresAt > now);
+    if (live) return live.token;
+    const token = randomToken(40);
+    await ctx.db.insert("claimTokens", {
+      token,
+      workspaceUserId: args.userId,
+      expiresAt: now + CLAIM_TOKEN_TTL_MS,
+    });
+    return token;
+  },
+});
+
+// Token-gated preview of what a claim link will move into your account — shown on
+// the claim confirmation screen so you see before you claim.
+export const claimPreview = query({
+  args: { token: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({ count: v.number(), titles: v.array(v.string()) }),
+  ),
+  handler: async (ctx, args) => {
+    const ct = await ctx.db
+      .query("claimTokens")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (!ct || ct.expiresAt < Date.now()) return null;
+    const plans = await ctx.db
+      .query("plans")
+      .withIndex("by_user", (q) => q.eq("userId", ct.workspaceUserId))
+      .collect();
+    return { count: plans.length, titles: plans.slice(0, 8).map((p) => p.title) };
   },
 });
 

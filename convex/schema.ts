@@ -41,7 +41,9 @@ export default defineSchema({
     token: v.string(),
     workspaceUserId: v.id("users"),
     expiresAt: v.number(),
-  }).index("by_token", ["token"]),
+  })
+    .index("by_token", ["token"])
+    .index("by_workspace", ["workspaceUserId"]),
 
   // Lightweight per-IP log to rate-limit anonymous provisioning.
   provisionLog: defineTable({

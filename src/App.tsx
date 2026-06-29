@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Authenticated,
   Unauthenticated,
@@ -248,36 +248,76 @@ function Dashboard() {
 
 function ClaimPage({ token }: { token: string }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
+  const preview = useQuery(api.plans.claimPreview, { token });
   const claim = useMutation(api.plans.claimWorkspace);
   const [status, setStatus] = useState<"idle" | "claiming" | "done" | "error">("idle");
   const [claimed, setClaimed] = useState(0);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!isAuthenticated || status !== "idle") return;
-    setStatus("claiming");
-    claim({ token })
-      .then((r) => {
-        setClaimed(r.claimed);
-        setStatus("done");
-      })
-      .catch((e) => {
-        setError(String(e?.message ?? e).replace(/^.*Error:\s*/, ""));
-        setStatus("error");
-      });
-  }, [isAuthenticated, status, claim, token]);
+  const count = preview?.count ?? 0;
+  const planWord = count === 1 ? "plan" : "plans";
 
-  if (isLoading) return <p className="muted">Loading…</p>;
-  if (!isAuthenticated) {
+  if (isLoading || preview === undefined) return <p className="muted">Loading…</p>;
+
+  // Invalid / expired token — nothing to claim.
+  if (preview === null) {
     return (
-      <SignIn intro="You're claiming a workspace an agent created for you. Its plans will move to your account and become permanent." />
+      <div className="gate">
+        <h1>
+          <span className="dot" /> HTML Plan Host
+        </h1>
+        <p className="err">This claim link is invalid or has expired.</p>
+        <a className="mini" href="/">Go to dashboard</a>
+      </div>
     );
   }
+
+  if (!isAuthenticated) {
+    return (
+      <SignIn
+        intro={`You're claiming a workspace an agent created for you — ${count} ${planWord}. Sign in and they'll move to your account and become permanent.`}
+      />
+    );
+  }
+
+  async function doClaim() {
+    setStatus("claiming");
+    try {
+      const r = await claim({ token });
+      setClaimed(r.claimed);
+      setStatus("done");
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e).replace(/^.*Error:\s*/, ""));
+      setStatus("error");
+    }
+  }
+
   return (
     <div className="gate">
       <h1>
         <span className="dot" /> HTML Plan Host
       </h1>
+      {status === "idle" && (
+        <>
+          <p>
+            Claim this workspace? Its {count} {planWord} will move to your account
+            and stop expiring.
+          </p>
+          {preview.titles.length > 0 && (
+            <ul className="claim-list">
+              {preview.titles.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+              {count > preview.titles.length && (
+                <li className="muted">+ {count - preview.titles.length} more</li>
+              )}
+            </ul>
+          )}
+          <button className="mini primary" onClick={() => void doClaim()}>
+            Claim {count} {planWord}
+          </button>
+        </>
+      )}
       {status === "claiming" && <p className="muted">Claiming…</p>}
       {status === "done" && (
         <>
@@ -285,17 +325,13 @@ function ClaimPage({ token }: { token: string }) {
             Workspace claimed — {claimed} {claimed === 1 ? "plan" : "plans"} added to
             your account.
           </p>
-          <a className="mini" href="/">
-            Go to dashboard
-          </a>
+          <a className="mini" href="/">Go to dashboard</a>
         </>
       )}
       {status === "error" && (
         <>
           <p className="err">{error}</p>
-          <a className="mini" href="/">
-            Go to dashboard
-          </a>
+          <a className="mini" href="/">Go to dashboard</a>
         </>
       )}
     </div>

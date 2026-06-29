@@ -113,7 +113,26 @@ const publish = httpAction(async (ctx, request) => {
   // on commenting with a button. (The same slug on the API host, /p/<slug>,
   // still serves the raw HTML bytes for machine-to-machine reads.)
   const url = `${process.env.SITE_URL}/p/${slug}`;
-  return json({ id: slug, url, title, updated: result === "updated" });
+
+  // If this is an anonymous (self-provisioned) workspace, the plan is temporary
+  // until a human claims it. Return the claimUrl on every publish so the agent
+  // always has it to pass along — it can't get stranded like the one-time
+  // provision response. Owned workspaces get neither field (plans are permanent).
+  const claimToken = await ctx.runMutation(
+    internal.plans.claimTokenForWorkspace,
+    { userId },
+  );
+  const claimUrl = claimToken
+    ? `${process.env.SITE_URL}/claim/${claimToken}`
+    : undefined;
+
+  return json({
+    id: slug,
+    url,
+    title,
+    updated: result === "updated",
+    ...(claimUrl ? { temporary: true, claimUrl } : {}),
+  });
 });
 
 // POST /provision — unauthenticated agent self-signup.
@@ -183,6 +202,11 @@ Two steps, no account needed:
 
 The response "url" is the one link to share: it renders your HTML, and a human
 can flip on inline commenting with a button (no account needed).
+
+IMPORTANT: if you self-provisioned, the publish response also has "temporary":true
+and a "claimUrl". Give the user BOTH the url and the claimUrl, and tell them the
+plan expires in ~7 days unless they open the claimUrl, sign in, and claim it. The
+claimUrl rides with every publish, so you can't lose it.
 
 Body fields: html (required, self-contained doc, inline CSS), title (optional),
 slug (optional stable/updatable URL), expiresInDays (optional auto-delete).

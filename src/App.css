@@ -282,6 +282,15 @@
   margin-left: auto;
 }
 
+.claim-list {
+  margin: 0.6rem 0 1rem;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
 .selfhost {
   margin-top: 1.5rem;
   line-height: 1.5;
