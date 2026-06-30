@@ -4,6 +4,9 @@
   --muted: #8b8b94;
   --border: #2a2a30;
   --card: #18181b;
+  --primary: #22c55e;
+  --primary-ink: #052e13;
+  --danger: #ef4444;
 
   font: 16px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
   color-scheme: light dark;
@@ -16,6 +19,9 @@
   :root {
     --bg: #ffffff;
     --text: #18181b;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --card: #fafafa;
   }
 }
 
@@ -31,6 +37,59 @@ code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 5px;
   padding: 1px 6px;
+}
+
+/* Shared button. Lives here (not App.css) so plan pages — which don't load
+   App.css — render consistent, themed buttons. */
+.mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.mini:hover {
+  border-color: var(--muted);
+}
+
+.mini.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+
+.mini.primary:hover {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.mini.danger {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.mini.danger:hover {
+  border-color: var(--danger);
+}
+
+.mini:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

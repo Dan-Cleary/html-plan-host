@@ -131,12 +131,7 @@
   margin-top: 0.5rem;
 }
 
-.mini.primary {
-  background: #22c55e;
-  color: #06250f;
-  border-color: #22c55e;
-  font-weight: 600;
-}
+/* .mini.primary now lives in index.css (shared). */
 
 .pv-comments {
   list-style: none;

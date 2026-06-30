@@ -234,26 +234,7 @@
   margin-bottom: 0.6rem;
 }
 
-.mini:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.mini {
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--card);
-  color: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.mini.danger {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.4);
-}
+/* .mini button styles now live in index.css (shared with plan pages). */
 
 .row {
   display: flex;
@@ -314,16 +295,4 @@
   color: inherit;
 }
 
-:root {
-  --muted: #8b8b94;
-  --border: #2a2a30;
-  --card: #18181b;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --card: #fafafa;
-  }
-}
+/* Design tokens (incl. light-mode values) now live in index.css. */
