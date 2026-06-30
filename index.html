@@ -36,6 +36,25 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- On a plan page, kick off the data fetch immediately (in parallel with the
+         JS bundle download) so content is ready the moment the app boots. -->
+    <script>
+      (function () {
+        var m = location.pathname.match(/^\/(?:p|plan)\/(.+)/);
+        if (!m) return;
+        var site = "%VITE_CONVEX_URL%".replace(".convex.cloud", ".convex.site");
+        var slug = decodeURIComponent(m[1]);
+        window.__planFetch = fetch(
+          site + "/plan.json?slug=" + encodeURIComponent(slug),
+        )
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .catch(function () {
+            return null;
+          });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

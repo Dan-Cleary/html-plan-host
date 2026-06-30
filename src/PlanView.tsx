@@ -58,14 +58,20 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
 
 export default function PlanView({ slug }: { slug: string }) {
   // Plan content over plain HTTP so the page paints without waiting on a Convex
-  // WebSocket query (undefined = loading, null = not found).
+  // WebSocket query (undefined = loading, null = not found). index.html kicks off
+  // this fetch during HTML parse (window.__planFetch) so it overlaps the bundle
+  // download; fall back to fetching here if that prefetch isn't present.
   const [plan, setPlan] = useState<PlanData | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
-    fetch(`${SITE_URL}/plan.json?slug=${encodeURIComponent(slug)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<PlanData>) : null))
-      .then((d) => alive && setPlan(d))
-      .catch(() => alive && setPlan(null));
+    const prefetch = (window as unknown as { __planFetch?: Promise<PlanData | null> })
+      .__planFetch;
+    const p =
+      prefetch ??
+      fetch(`${SITE_URL}/plan.json?slug=${encodeURIComponent(slug)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<PlanData>) : null))
+        .catch(() => null);
+    p.then((d) => alive && setPlan(d ?? null));
     return () => {
       alive = false;
     };
