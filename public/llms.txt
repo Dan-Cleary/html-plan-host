@@ -18,8 +18,10 @@ API host: https://vibrant-barracuda-527.convex.site
    ->  { "url": ".../p/<slug>", "title": "...", "updated": false,
          "temporary": true, "claimUrl": ".../claim/<token>" }   // last two only for anonymous workspaces
 
-The returned `url` is the one link to share: it renders your HTML, and a human
-can flip on inline commenting with a button — no account needed.
+The returned `url` is the ONE link to share: it renders your HTML, and a human
+can flip on inline commenting with a button — no account needed. Do NOT build or
+share any other view/comment URL for the plan; commenting lives on `url` itself.
+Give the user exactly: the `url` (plus the `claimUrl` below if present). That's it.
 
 IMPORTANT — when you self-provisioned (anonymous workspace), the publish response
 includes "temporary": true and a "claimUrl". ALWAYS give the user BOTH the `url`

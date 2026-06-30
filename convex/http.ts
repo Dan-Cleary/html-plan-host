@@ -200,8 +200,10 @@ Two steps, no account needed:
     -H "Authorization: Bearer $KEY" -H "content-type: application/json" \\
     -d '{"title":"My Plan","html":"<!doctype html><h1>Hello</h1>"}'
 
-The response "url" is the one link to share: it renders your HTML, and a human
-can flip on inline commenting with a button (no account needed).
+The response "url" is the ONE link to share: it renders your HTML, and a human
+can flip on inline commenting with a button (no account needed). Don't build any
+other view/comment URL — commenting lives on "url" itself. Give the user just the
+"url" (plus "claimUrl" below if present).
 
 IMPORTANT: if you self-provisioned, the publish response also has "temporary":true
 and a "claimUrl". Give the user BOTH the url and the claimUrl, and tell them the
