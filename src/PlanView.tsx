@@ -122,6 +122,10 @@ export default function PlanView({ slug }: { slug: string }) {
     const clean = DOMPurify.sanitize(plan.html, {
       WHOLE_DOCUMENT: true,
       ADD_TAGS: ["style"],
+      // Sole XSS guard now that the iframe isn't sandboxed: DOMPurify already
+      // drops <script> and on* handlers; also forbid tags that could pull in
+      // external/active content.
+      FORBID_TAGS: ["iframe", "object", "embed", "base", "form"],
     });
     const doc = new DOMParser().parseFromString(clean, "text/html");
     let i = 0;
@@ -285,10 +289,13 @@ export default function PlanView({ slug }: { slug: string }) {
         {commenting && (
           <p className="pv-hint">Click any part of the plan to comment on it.</p>
         )}
+        {/* No `sandbox` attr: Safari treats a sandboxed srcdoc as an opaque
+            origin, which blocks the parent from reaching contentDocument to wire
+            click-to-comment. DOMPurify (below) is the XSS guard — it strips all
+            scripts/handlers — and the iframe boundary alone isolates plan CSS. */}
         <iframe
           ref={iframeRef}
           className="pv-frame"
-          sandbox="allow-same-origin"
           srcDoc={srcDoc}
           onLoad={onFrameLoad}
           title={plan.title}
