@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { useQuery } from "convex/react";
 import DOMPurify from "dompurify";
 import { api } from "../convex/_generated/api";
 import "./PlanView.css";
+
+type PlanData = { title: string; html: string; expiresAt?: number };
 
 const CLOUD_URL = import.meta.env.VITE_CONVEX_URL as string;
 const SITE_URL =
@@ -55,10 +57,21 @@ function sameSet(a: Set<string>, b: Set<string>): boolean {
 }
 
 export default function PlanView({ slug }: { slug: string }) {
-  const plan = useQuery(api.plans.getBySlug, { slug });
+  // Plan content over plain HTTP so the page paints without waiting on a Convex
+  // WebSocket query (undefined = loading, null = not found).
+  const [plan, setPlan] = useState<PlanData | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    fetch(`${SITE_URL}/plan.json?slug=${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<PlanData>) : null))
+      .then((d) => alive && setPlan(d))
+      .catch(() => alive && setPlan(null));
+    return () => {
+      alive = false;
+    };
+  }, [slug]);
+  // Comments stay live (sidebar), loaded in the background — never blocks render.
   const comments = useQuery(api.comments.list, { slug });
-  const removeComment = useMutation(api.comments.remove);
-  const { isAuthenticated } = useConvexAuth();
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const docRef = useRef<Document | null>(null);
@@ -355,11 +368,6 @@ export default function PlanView({ slug }: { slug: string }) {
                   <div className="pv-cmeta">
                     <span>{c.authorName || "Anonymous"}</span>
                     <span>{timeAgo(c.createdAt)}</span>
-                    {isAuthenticated && (
-                      <button className="pv-del" onClick={() => void removeComment({ id: c._id })}>
-                        delete
-                      </button>
-                    )}
                   </div>
                 </li>
               ))}

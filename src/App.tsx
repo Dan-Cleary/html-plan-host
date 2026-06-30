@@ -9,7 +9,6 @@ import {
 } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
-import PlanView from "./PlanView";
 import "./App.css";
 
 function timeAgo(ts: number): string {
@@ -367,13 +366,9 @@ function ClaimPage({ token }: { token: string }) {
 }
 
 function App() {
+  // Plan routes (/p/, /plan/) are handled in main.tsx on a lean, auth-free path.
   const path = window.location.pathname;
   const claimMatch = path.match(/^\/claim\/(.+)$/);
-  const planMatch = path.match(/^\/(?:plan|p)\/(.+)$/);
-
-  if (planMatch) {
-    return <PlanView slug={decodeURIComponent(planMatch[1])} />;
-  }
 
   return (
     <main className="wrap">

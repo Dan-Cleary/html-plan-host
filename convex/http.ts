@@ -222,6 +222,16 @@ const agentDoc = httpAction(
     }),
 );
 
+// GET /plan.json?slug=... — plan data for the frontend page, over plain HTTP
+// (CORS) so the page renders without opening a Convex WebSocket. Counts a view.
+const planJson = httpAction(async (ctx, request) => {
+  const slug = new URL(request.url).searchParams.get("slug") ?? "";
+  const plan = await ctx.runQuery(api.plans.getBySlug, { slug });
+  if (!plan) return corsJson({ error: "not found" }, 404);
+  await ctx.runMutation(internal.plans.incrementViews, { slug });
+  return corsJson(plan); // { title, html, expiresAt? }
+});
+
 // GET /p/:slug — render the stored HTML as-is.
 const view = httpAction(async (ctx, request) => {
   const slug = new URL(request.url).pathname.replace(/^\/p\//, "");
@@ -246,6 +256,7 @@ http.route({ path: "/comments", method: "POST", handler: addComment });
 http.route({ path: "/comments", method: "OPTIONS", handler: commentsPreflight });
 http.route({ path: "/plans", method: "POST", handler: publish });
 http.route({ path: "/agent", method: "GET", handler: agentDoc });
+http.route({ path: "/plan.json", method: "GET", handler: planJson });
 http.route({ pathPrefix: "/p/", method: "GET", handler: view });
 
 export default http;
