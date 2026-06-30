@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d0d0f" />
 
+    <!-- Warm the Convex connections during HTML parse so the plan-data fetch
+         (.convex.site) and the comments socket (.convex.cloud) start sooner. -->
+    <link rel="preconnect" href="https://vibrant-barracuda-527.convex.site" crossorigin />
+    <link rel="preconnect" href="https://vibrant-barracuda-527.convex.cloud" crossorigin />
+
     <title>HTML Plan Host — publish HTML plans to a shareable URL</title>
     <meta
       name="description"
