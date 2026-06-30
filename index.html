@@ -41,15 +41,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Discoverable instructions for coding agents that fetch this URL: tells
-         them where the publish API lives so "point your agent at the link" works
-         without the agent having to guess /llms.txt. Hidden from human visitors. -->
-    <noscript>
-      HTML Plan Host hosts HTML plans for coding agents. To publish a plan and get
-      a shareable URL, read https://html-plan-host.vercel.app/llms.txt — POST
-      /provision to mint an API key (no account needed), then POST your HTML to
-      /plans. The response includes the shareable URL.
-    </noscript>
     <!-- On a plan page, kick off the data fetch immediately (in parallel with the
          JS bundle download) so content is ready the moment the app boots. -->
     <script>
