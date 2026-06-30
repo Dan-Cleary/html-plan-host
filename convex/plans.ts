@@ -215,12 +215,23 @@ export const myApiKeys = query({
   },
 });
 
+const MAX_API_KEYS_PER_USER = 10;
+
 export const createApiKey = mutation({
   args: { label: v.optional(v.string()) },
   returns: v.string(),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not signed in");
+    const existing = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    if (existing.length >= MAX_API_KEYS_PER_USER) {
+      throw new Error(
+        `Key limit reached (${MAX_API_KEYS_PER_USER}). Revoke one to create another.`,
+      );
+    }
     const key = `phk_${randomToken(32)}`;
     await ctx.db.insert("apiKeys", {
       userId,

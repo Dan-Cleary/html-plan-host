@@ -225,6 +225,20 @@
   white-space: nowrap;
 }
 
+.keys-block {
+  margin-top: 0.9rem;
+}
+
+.keys-toggle {
+  font-size: 0.82rem;
+  margin-bottom: 0.6rem;
+}
+
+.mini:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .mini {
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--border);

@@ -134,42 +134,65 @@ export default function PlanView({ slug }: { slug: string }) {
     return "<!doctype html>" + doc.documentElement.outerHTML;
   }, [plan]);
 
-  // Wire up the iframe once it has loaded its document.
-  const onFrameLoad = () => {
+  // Wire up the iframe's document: size it, reflect comment-mode, and attach the
+  // click-to-comment listener. Idempotent (a `wired` flag stops double-binding)
+  // and only proceeds once the srcDoc content is actually in place — detected by
+  // the presence of a [data-pi] block. Returns true once wired.
+  const wireDoc = () => {
     const doc = iframeRef.current?.contentDocument ?? null;
+    if (!doc || !doc.body || !doc.querySelector("[data-pi]")) return false;
     docRef.current = doc;
-    if (!doc) return;
     const fit = () => {
       if (!iframeRef.current) return;
-      const h = Math.max(
-        doc.documentElement.scrollHeight,
-        doc.body.scrollHeight,
-      );
+      const h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
       iframeRef.current.style.height = `${h + 48}px`;
     };
     fit();
     setTimeout(fit, 150);
     setTimeout(fit, 500);
     doc.body.classList.toggle("commenting", commentingRef.current);
-    doc.body.addEventListener("click", (e) => {
-      if (!commentingRef.current) return;
-      const el = (e.target as Element | null)?.closest?.("[data-pi]");
-      if (!el) return;
-      const idx = Number(el.getAttribute("data-pi"));
-      const quote = (el.textContent || "")
-        .trim()
-        .replace(/\s+/g, " ")
-        .slice(0, 300);
-      onPickRef.current(idx, quote);
-    });
+    if (doc.body.dataset.wired !== "1") {
+      doc.body.dataset.wired = "1";
+      // Listen on the document (not just body) — more reliable across browsers.
+      doc.addEventListener("click", (e) => {
+        if (!commentingRef.current) return;
+        const el = (e.target as Element | null)?.closest?.("[data-pi]");
+        if (!el) return;
+        const idx = Number(el.getAttribute("data-pi"));
+        const quote = (el.textContent || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 300);
+        onPickRef.current(idx, quote);
+      });
+    }
     resolveAnchors();
+    return true;
   };
 
-  // Re-resolve comment anchors whenever comments or the document change.
+  const onFrameLoad = () => {
+    wireDoc();
+  };
+
+  // Wire the iframe when its srcDoc changes. The `load` event timing is
+  // unreliable for srcDoc iframes (notably in Safari), so poll until the
+  // document is ready rather than trusting onLoad alone.
+  useEffect(() => {
+    if (!srcDoc) return;
+    if (wireDoc()) return;
+    let n = 0;
+    const iv = setInterval(() => {
+      if (wireDoc() || ++n > 40) clearInterval(iv);
+    }, 50);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [srcDoc]);
+
+  // Re-resolve comment anchors whenever comments change.
   useEffect(() => {
     resolveAnchors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comments, srcDoc]);
+  }, [comments]);
 
   // Reflect comment-mode into the iframe (hover affordance + clickability).
   useEffect(() => {

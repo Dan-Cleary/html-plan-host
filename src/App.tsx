@@ -12,11 +12,6 @@ import { api } from "../convex/_generated/api";
 import PlanView from "./PlanView";
 import "./App.css";
 
-const CLOUD_URL = import.meta.env.VITE_CONVEX_URL as string;
-const SITE_URL =
-  (import.meta.env.VITE_CONVEX_SITE_URL as string | undefined) ||
-  CLOUD_URL.replace(".convex.cloud", ".convex.site");
-
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -121,58 +116,89 @@ function SignIn({ intro }: { intro?: string }) {
   );
 }
 
+const MAX_API_KEYS = 10;
+const maskKey = (k: string) => `${k.slice(0, 8)}…${k.slice(-4)}`;
+
 function ApiKeys() {
   const keys = useQuery(api.plans.myApiKeys);
   const create = useMutation(api.plans.createApiKey);
   const revoke = useMutation(api.plans.revokeApiKey);
   const [copied, setCopied] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   const copy = (text: string, id: string) => {
     void navigator.clipboard.writeText(text);
     setCopied(id);
     setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
   };
+  const toggleReveal = (id: string) =>
+    setRevealed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const count = keys?.length ?? 0;
+  const atCap = count >= MAX_API_KEYS;
 
   return (
     <section className="keys">
       <div className="keys-head">
         <h2>API keys</h2>
-        <button className="mini" onClick={() => void create({})}>
+        <button
+          className="mini"
+          disabled={atCap}
+          title={atCap ? `Limit ${MAX_API_KEYS} — revoke one first` : "Generate a new key"}
+          onClick={() => void create({})}
+        >
           + New key
         </button>
       </div>
       <p className="muted small">
         Generate a key and hand it to your coding agent — that's all it needs to
-        publish. Point the agent at{" "}
-        <a href="/llms.txt" target="_blank" rel="noreferrer">
-          /llms.txt
-        </a>{" "}
-        for the full recipe, or give it this one-liner:
+        publish. Point it at{" "}
+        <a href="/llms.txt" target="_blank" rel="noreferrer">/llms.txt</a> for how.
       </p>
-      <pre className="snippet">
-        curl -X POST {SITE_URL}/plans \{"\n"}
-        {"  "}-H "Authorization: Bearer &lt;your key below&gt;" \{"\n"}
-        {"  "}-H "content-type: application/json" \{"\n"}
-        {"  "}-d '{"{"}"html":"&lt;!doctype html&gt;&lt;h1&gt;Hello&lt;/h1&gt;"{"}"}'
-      </pre>
+      <button
+        className="mini"
+        onClick={() => copy(AGENT_PROMPT, "prompt")}
+        title="Copy a ready-to-paste prompt for your agent"
+      >
+        {copied === "prompt" ? "Copied" : "Copy agent prompt"}
+      </button>
+
       {keys === undefined ? (
         <p className="muted">Loading…</p>
-      ) : keys.length === 0 ? (
+      ) : count === 0 ? (
         <p className="muted">No keys yet — generate one to let your agents publish.</p>
       ) : (
-        <ul className="keylist">
-          {keys.map((k) => (
-            <li key={k._id}>
-              <code className="key">{k.key}</code>
-              <button className="mini" onClick={() => copy(k.key, k._id)}>
-                {copied === k._id ? "Copied" : "Copy"}
-              </button>
-              <button className="mini danger" onClick={() => void revoke({ id: k._id })}>
-                Revoke
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="keys-block">
+          <button className="link keys-toggle" onClick={() => setOpen((o) => !o)}>
+            {open ? "▾" : "▸"} {open ? "Hide" : "Show"} keys ({count})
+          </button>
+          {open && (
+            <ul className="keylist">
+              {keys.map((k) => (
+                <li key={k._id}>
+                  <code className="key">
+                    {revealed.has(k._id) ? k.key : maskKey(k.key)}
+                  </code>
+                  <button className="mini" onClick={() => toggleReveal(k._id)}>
+                    {revealed.has(k._id) ? "Hide" : "Reveal"}
+                  </button>
+                  <button className="mini" onClick={() => copy(k.key, k._id)}>
+                    {copied === k._id ? "Copied" : "Copy"}
+                  </button>
+                  <button className="mini danger" onClick={() => void revoke({ id: k._id })}>
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   );
