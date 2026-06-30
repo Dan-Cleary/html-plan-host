@@ -285,8 +285,10 @@ function ClaimPage({ token }: { token: string }) {
 
   if (isLoading || preview === undefined) return <p className="muted">Loading…</p>;
 
-  // Invalid / expired token — nothing to claim.
-  if (preview === null) {
+  // Invalid / expired token — nothing to claim. Only treat a null preview as an
+  // error BEFORE we start claiming: a successful claim deletes the token, which
+  // makes this live query return null — that's success, not an invalid link.
+  if (preview === null && status === "idle") {
     return (
       <div className="gate">
         <h1>
@@ -329,7 +331,7 @@ function ClaimPage({ token }: { token: string }) {
             Claim this workspace? Its {count} {planWord} will move to your account
             and stop expiring.
           </p>
-          {preview.titles.length > 0 && (
+          {preview && preview.titles.length > 0 && (
             <ul className="claim-list">
               {preview.titles.map((t, i) => (
                 <li key={i}>{t}</li>
